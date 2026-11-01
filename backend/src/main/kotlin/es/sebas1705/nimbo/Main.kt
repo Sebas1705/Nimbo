@@ -3,6 +3,8 @@ package es.sebas1705.nimbo
 import io.ktor.server.application.Application
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.netty.NettyApplicationEngine
+import io.ktor.server.engine.EmbeddedServer
 import org.slf4j.LoggerFactory
 
 /**
@@ -29,15 +31,20 @@ fun Application.nimboFromConfig(
     )
 }
 
+/** The real server, shared by the command line entry point and the desktop one. */
+internal fun buildServer(config: NimboConfig): EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration> {
+    val docker = System.getenv("NIMBO_DOCKER_BIN") ?: "docker"
+    return embeddedServer(Netty, port = config.port, host = config.host) {
+        nimboFromConfig(config, CliContainerRuntime(ProcessExec(docker)), shell = ProcessShell(docker))
+    }
+}
+
 fun main() {
     val config = NimboConfig.fromEnv()
-    val docker = System.getenv("NIMBO_DOCKER_BIN") ?: "docker"
     val log = LoggerFactory.getLogger("nimbo")
     if (config.host !in setOf("127.0.0.1", "localhost")) {
         log.warn("Listening on ${config.host}: publish the port on loopback only (-p 127.0.0.1:${config.port}:${config.port}); Nimbo can control Docker.")
     }
     log.info("Nimbo ${config.version ?: "dev"} on http://${config.host}:${config.port}")
-    embeddedServer(Netty, port = config.port, host = config.host) {
-        nimboFromConfig(config, CliContainerRuntime(ProcessExec(docker)), shell = ProcessShell(docker))
-    }.start(wait = true)
+    buildServer(config).start(wait = true)
 }

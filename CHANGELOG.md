@@ -3,6 +3,15 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [0.2.0]
+
+### Added
+- **Windows desktop app.** `Nimbo.exe` carries its own Java, starts Nimbo, opens the UI in your browser and sits in the system tray (open, quit). A second launch just reopens the running one, and a busy port makes it pick another. Available as a portable zip and as an installer.
+- `docker-compose.yml` and `.env.example` for one-command deployment with the published image.
+
+### Changed
+- The "missing secrets" error now explains the `.env` file as well as Doppler.
+
 ## [0.1.0]
 
 First release.

@@ -237,3 +237,53 @@ class ComposeFileTest {
         assertContains(message, "doppler")
     }
 }
+
+class WorkflowFilesTest {
+    private fun repoFile(name: String) = listOf(File(name), File("../$name")).first { it.isFile }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun jobs(workflow: String): Map<String, Map<String, Any?>> {
+        val root = org.yaml.snakeyaml.Yaml(org.yaml.snakeyaml.constructor.SafeConstructor(org.yaml.snakeyaml.LoaderOptions()))
+            .load<Map<String, Any?>>(repoFile(".github/workflows/$workflow").readText())
+        return root["jobs"] as Map<String, Map<String, Any?>>
+    }
+
+    @Test
+    fun `both workflows are valid yaml with the jobs we rely on`() {
+        assertTrue(jobs("ci.yml").keys.containsAll(listOf("backend", "web", "package", "desktop")))
+        assertTrue(jobs("release.yml").keys.containsAll(listOf("package", "desktop", "release", "image")))
+    }
+
+    @Test
+    fun `the windows jobs run on windows and the release waits for the installer`() {
+        assertTrue(jobs("ci.yml").getValue("desktop")["runs-on"].toString().startsWith("windows"))
+        val release = jobs("release.yml")
+        assertEquals("windows-2022", release.getValue("desktop")["runs-on"], "jpackage 21 needs WiX 3, which this image provides")
+        val needs = (release.getValue("release")["needs"] as List<*>).map { it.toString() }
+        assertTrue("desktop" in needs && "package" in needs, "a release must not be published without the desktop build: $needs")
+    }
+
+    @Test
+    fun `publishing jobs only run for tags`() {
+        val release = jobs("release.yml")
+        listOf("release", "image").forEach { job ->
+            assertContains(release.getValue(job)["if"].toString(), "refs/tags/v", message = "$job must not run on a manual dry run")
+        }
+        assertFalse(release.getValue("desktop").containsKey("if"), "the desktop build runs on dry runs too")
+    }
+
+    @Test
+    fun `the smoke test script exists and both workflows run it`() {
+        val script = repoFile("packaging/smoke-test.ps1")
+        assertTrue(script.readText().contains("NIMBO_HEADLESS"))
+        listOf("ci.yml", "release.yml").forEach { assertContains(repoFile(".github/workflows/$it").readText(), "packaging/smoke-test.ps1") }
+    }
+
+    @Test
+    fun `the installer keeps a fixed upgrade id so a new version replaces the old one`() {
+        val gradle = listOf(File("build.gradle.kts"), File("backend/build.gradle.kts")).first { it.isFile }.readText()
+        assertContains(gradle, "--win-upgrade-uuid")
+        assertContains(gradle, "--win-per-user-install", message = "no administrator rights should be needed")
+        assertTrue(Regex("--win-upgrade-uuid\", \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\"").containsMatchIn(gradle))
+    }
+}

@@ -27,6 +27,10 @@ Planned: mount the Docker socket so Lambda and EC2 work, Azure and Cloud Storage
 
 You need Docker (Docker Desktop or Engine) running. Nimbo drives it to start the emulators.
 
+**Windows app** (no Java needed, it brings its own). Download from the [releases](https://github.com/Sebas1705/Nimbo/releases) either `Nimbo-<version>-windows-x64.msi` (installs for your user only, no administrator rights, adds a Start menu entry and updates in place when you install a newer one) or `Nimbo-<version>-windows-x64.zip` (portable: unzip and run `Nimbo.exe`). Nimbo starts, opens its UI in your browser and leaves an icon in the system tray: double click or **Open Nimbo** to see it again, **Quit Nimbo** to stop it (the emulators it started keep running until you stop them). Starting it a second time only reopens the running one, and if port 8080 is taken by another program it picks a free port. Docker Desktop must be running.
+
+The installer is **not code-signed**, so Windows SmartScreen will warn that the publisher is unknown ("More info" > "Run anyway"); check the file against `SHA256SUMS` first. Settings are read from your Windows environment variables (`NIMBO_API_TOKEN`, `NIMBO_PORT`, `NIMBO_MINIO_PASSWORD`...), and the log is in `%LOCALAPPDATA%\Nimbo\nimbo.log`.
+
 **The jar** (needs Java 21). Download `nimbo-<version>.jar` from the [releases](https://github.com/Sebas1705/Nimbo/releases), check it against `SHA256SUMS`, and run it from any folder; the UI, the labs and the default stacks are inside it:
 
 ```bash
