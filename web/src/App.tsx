@@ -49,6 +49,7 @@ export function App() {
   const [stackErrors, setStackErrors] = useState<Record<string, string>>({})
   const [exporting, setExporting] = useState<Stack | null>(null)
   const [view, setView] = useState<View>('infra')
+  const [version, setVersion] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +64,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    api.health().then((h) => setVersion(h.version ?? null)).catch(() => {})
     refresh()
     const id = setInterval(refresh, 3000)
     return () => clearInterval(id)
@@ -250,6 +252,11 @@ export function App() {
           </section>
         ))}
       </main>
+
+      <footer className="foot">
+        Nimbo {version ? `v${version}` : 'dev'} ·{' '}
+        <a href="https://github.com/Sebas1705/Nimbo" target="_blank" rel="noreferrer noopener">GitHub</a>
+      </footer>
 
       {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}
       {exporting && <ExportPanel stack={exporting} t={t} onClose={() => setExporting(null)} />}

@@ -1,0 +1,6 @@
+id: fixture-lab
+title: Fixture
+summary: From the bundle
+steps: [do it]
+checks:
+  - {type: s3.bucket, name: b, label: L}

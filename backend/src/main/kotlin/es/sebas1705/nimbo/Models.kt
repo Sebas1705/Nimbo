@@ -41,7 +41,7 @@ data class ProviderDto(
 data class DockerStatusDto(val available: Boolean, val version: String? = null, val error: String? = null)
 
 @Serializable
-data class HealthDto(val status: String, val authRequired: Boolean)
+data class HealthDto(val status: String, val authRequired: Boolean, val version: String? = null)
 
 @Serializable
 data class LogsDto(val id: String, val lines: String)

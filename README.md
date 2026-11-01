@@ -6,7 +6,7 @@ It does not emulate any cloud by itself. It orchestrates existing emulators ([Fl
 
 ## Status
 
-Early (M0-M2). Working today:
+Version 0.1.0 (see the [changelog](CHANGELOG.md)); while it is 0.x, anything may still change. Working today:
 
 - Catalog of 12 providers, grouped by cloud, started and stopped with one click.
 - Live state of every container, logs panel and copy-ready client environment variables.
@@ -23,13 +23,38 @@ Early (M0-M2). Working today:
 
 Planned: mount the Docker socket so Lambda and EC2 work, Azure and Cloud Storage inspectors.
 
-## Requirements
+## Install
 
-- Docker (Docker Desktop or Engine) running.
-- JDK 21 and Node 22+.
-- [Doppler CLI](https://docs.doppler.com/docs/install-cli) if you want the secrets-backed providers (MinIO, PostgreSQL) and API token.
+You need Docker (Docker Desktop or Engine) running. Nimbo drives it to start the emulators.
 
-## Run it
+**The jar** (needs Java 21). Download `nimbo-<version>.jar` from the [releases](https://github.com/Sebas1705/Nimbo/releases), check it against `SHA256SUMS`, and run it from any folder; the UI, the labs and the default stacks are inside it:
+
+```bash
+java -jar nimbo-0.1.0.jar
+# then open http://127.0.0.1:8080
+```
+
+**Docker** (no Java needed). The container drives the Docker of your machine through its socket, which is root-equivalent access, so publish the port on loopback only and never expose it:
+
+```bash
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  --add-host=host.docker.internal:host-gateway \
+  ghcr.io/sebas1705/nimbo
+```
+
+`--add-host` is only needed on Linux; Docker Desktop resolves `host.docker.internal` by itself. In this mode Nimbo reaches the emulators at `host.docker.internal`, set through `NIMBO_EMULATOR_HOST`.
+
+**From source** (JDK 21 and Node 22+; the [Doppler CLI](https://docs.doppler.com/docs/install-cli) only if you want the secrets-backed providers, MinIO and PostgreSQL, and the API token):
+
+```bash
+cd web && npm ci && npm run build && cd ..
+./gradlew :backend:buildFatJar        # backend/build/libs/nimbo-<version>.jar
+```
+
+See [RELEASING.md](RELEASING.md) for how a release is cut.
+
+## Run it from source
 
 ```bash
 # 1. Build the web UI
@@ -52,7 +77,9 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `NIMBO_PORT` | HTTP port (always bound to `127.0.0.1`) | `8080` |
+| `NIMBO_PORT` | HTTP port | `8080` |
+| `NIMBO_HOST` | Address to listen on. Keep loopback unless Nimbo runs in a container whose port you publish on loopback | `127.0.0.1` |
+| `NIMBO_EMULATOR_HOST` | Where Nimbo reaches the emulators (`host.docker.internal` inside Docker) | `localhost` |
 | `NIMBO_API_TOKEN` | If set, every `/api` call except `/api/health` needs `Authorization: Bearer <token>` | unset |
 | `NIMBO_MINIO_USER`, `NIMBO_MINIO_PASSWORD` | MinIO root credentials | required to start MinIO |
 | `NIMBO_POSTGRES_PASSWORD` | PostgreSQL password | required to start PostgreSQL |
@@ -96,7 +123,7 @@ The inspector talks to the emulators on `localhost:4566` (AWS) and `localhost:45
 
 ## Security notes
 
-Nimbo can start containers on your machine, so it only listens on loopback and rejects any request whose `Host` header is not `localhost` or `127.0.0.1` (a defence against DNS rebinding; add hostnames you control with `NIMBO_ALLOWED_HOSTS`), and only ever manages containers it labelled itself (`nimbo.managed=true`). Published ports are bound to `127.0.0.1`. Provider ids are validated against the built-in catalog before reaching Docker.
+Nimbo can start containers on your machine, so it listens on loopback by default (inside the Docker image it listens on all interfaces and relies on you publishing the port on `127.0.0.1`) and rejects any request whose `Host` header is not `localhost` or `127.0.0.1` (a defence against DNS rebinding; add hostnames you control with `NIMBO_ALLOWED_HOSTS`), and only ever manages containers it labelled itself (`nimbo.managed=true`). Published ports are bound to `127.0.0.1`. Provider ids are validated against the built-in catalog before reaching Docker.
 
 ## Tests
 

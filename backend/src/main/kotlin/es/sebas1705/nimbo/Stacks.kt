@@ -54,12 +54,16 @@ class StackCatalog(val stacks: List<StackDef>, val problems: List<String> = empt
             return StackCatalog(stacks, problems)
         }
 
+        /** The nimbo.yml packed inside the jar, if any. */
+        fun loadBundled(path: String = "/defaults/nimbo.yml"): StackCatalog? =
+            StackCatalog::class.java.getResourceAsStream(path)?.use { parse(it.readBytes().decodeToString()) }
+
         /** Looks for NIMBO_STACKS_FILE, then nimbo.yml here and one level up (gradle runs in backend/). */
         fun load(env: Map<String, String> = System.getenv()): StackCatalog {
             val file = listOfNotNull(env["NIMBO_STACKS_FILE"], "nimbo.yml", "../nimbo.yml")
                 .map(::File)
                 .firstOrNull { it.isFile }
-                ?: return builtIn
+                ?: return loadBundled() ?: builtIn
             return parse(file.readText())
         }
     }

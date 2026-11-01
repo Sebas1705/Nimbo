@@ -19,6 +19,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.http.content.staticFiles
+import io.ktor.server.http.content.staticResources
 import java.io.File
 import java.security.MessageDigest
 
@@ -29,9 +30,22 @@ data class NimboConfig(
     val hostEnv: Map<String, String> = emptyMap(),
     /** Extra Host header values accepted besides loopback (e.g. behind a reverse proxy you control). */
     val allowedHosts: Set<String> = emptySet(),
+    /** Address to listen on. Anything but loopback is only sensible inside a container whose port you publish on loopback. */
+    val host: String = "127.0.0.1",
+    /** Where the emulators answer from Nimbo's point of view (host.docker.internal when Nimbo itself runs in Docker). */
+    val emulatorHost: String = "localhost",
+    /** Classpath folder holding a bundled UI, used when there is no web directory on disk. */
+    val webResources: String? = null,
+    val version: String? = null,
 ) {
     companion object {
-        fun fromEnv(env: Map<String, String> = System.getenv()): NimboConfig = NimboConfig(
+        fun fromEnv(env: Map<String, String> = System.getenv()): NimboConfig {
+            val config = build(env)
+            val bundled = config.webDir == null && NimboConfig::class.java.getResource("/static/index.html") != null
+            return if (bundled) config.copy(webResources = "static") else config
+        }
+
+        private fun build(env: Map<String, String>) = NimboConfig(
             port = env["NIMBO_PORT"]?.toIntOrNull() ?: 8080,
             apiToken = env["NIMBO_API_TOKEN"]?.takeIf { it.isNotBlank() },
             // `gradlew :backend:run` starts in backend/, so also look one level up.
@@ -39,6 +53,9 @@ data class NimboConfig(
                 .map(::File)
                 .firstOrNull { it.isDirectory },
             hostEnv = env,
+            host = env["NIMBO_HOST"]?.takeIf { it.isNotBlank() } ?: "127.0.0.1",
+            emulatorHost = env["NIMBO_EMULATOR_HOST"]?.takeIf { it.isNotBlank() } ?: "localhost",
+            version = NimboConfig::class.java.`package`?.implementationVersion,
             allowedHosts = env["NIMBO_ALLOWED_HOSTS"].orEmpty().split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet(),
         )
     }
@@ -99,7 +116,7 @@ fun Application.nimboModule(
             }
 
             get("/health") {
-                call.respond(HealthDto("ok", authRequired = config.apiToken != null))
+                call.respond(HealthDto("ok", authRequired = config.apiToken != null, version = config.version))
             }
             providerRoutes(config, runtime)
             stackRoutes(config, runtime, stacks)
@@ -111,8 +128,10 @@ fun Application.nimboModule(
             traceRoutes(traces)
         }
 
-        config.webDir?.let { dir ->
-            staticFiles("/", dir) { default("index.html") }
+        if (config.webDir != null) {
+            staticFiles("/", config.webDir) { default("index.html") }
+        } else if (config.webResources != null) {
+            staticResources("/", config.webResources) { default("index.html") }
         }
     }
 }

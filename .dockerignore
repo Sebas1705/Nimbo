@@ -1,0 +1,14 @@
+.git
+.github
+.gradle
+.kotlin
+.idea
+.vscode
+**/build
+**/node_modules
+web/dist
+examples
+*.log
+doppler.yaml
+Dockerfile
+.dockerignore

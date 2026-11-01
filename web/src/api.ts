@@ -20,6 +20,7 @@ export interface DockerStatus {
 export interface Health {
   status: string
   authRequired: boolean
+  version?: string | null
 }
 
 export interface Stack {

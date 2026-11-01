@@ -1,0 +1,131 @@
+name: Release
+
+# A tag like v0.1.0 builds the jar, publishes a GitHub release and pushes the image to GHCR.
+# Running it by hand (Actions > Release > Run workflow) only builds and tests everything and keeps the
+# result as a workflow artifact: nothing is published.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the version
+        id: version
+        run: |
+          DECLARED=$(sed -n 's/.*?: "\([0-9][^"]*\)".*/\1/p' backend/build.gradle.kts | head -1)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if [[ "$VERSION" != "$DECLARED" ]]; then
+              echo "::error::The tag says $VERSION but backend/build.gradle.kts declares $DECLARED. Bump it and tag again."
+              exit 1
+            fi
+          else
+            VERSION="$DECLARED"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Packaging Nimbo $VERSION"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Web tests and build
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Backend tests and jar
+        run: ./gradlew --console=plain -PnimboVersion=${{ steps.version.outputs.version }} :backend:test :backend:buildFatJar
+
+      - name: Checksums
+        run: |
+          mkdir dist
+          cp backend/build/libs/nimbo-${{ steps.version.outputs.version }}.jar dist/
+          (cd dist && sha256sum nimbo-*.jar > SHA256SUMS && cat SHA256SUMS)
+
+      - name: The jar starts and serves the UI
+        run: |
+          java -jar dist/nimbo-${{ steps.version.outputs.version }}.jar &
+          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
+          curl -sf localhost:8080/api/health | grep -q '"version":"${{ steps.version.outputs.version }}"'
+          curl -sf localhost:8080/ | grep -q '<title>Nimbo</title>'
+          curl -sf localhost:8080/api/labs | grep -q first-bucket
+          kill %1
+
+      - name: The image builds
+        run: docker build --build-arg NIMBO_VERSION=${{ steps.version.outputs.version }} -t nimbo:ci .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nimbo-${{ steps.version.outputs.version }}
+          path: dist/
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nimbo-${{ needs.package.outputs.version }}
+          path: dist
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FLAGS=""
+          # 0.x means the API and the file formats may still change.
+          [[ "${{ needs.package.outputs.version }}" == 0.* ]] && FLAGS="--prerelease"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Nimbo ${{ needs.package.outputs.version }}" \
+            --notes-file <(awk '/^## \['"${{ needs.package.outputs.version }}"'\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md) \
+            --verify-tag $FLAGS
+
+  image:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/nimbo" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: NIMBO_VERSION=${{ needs.package.outputs.version }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ needs.package.outputs.version }}
+            ${{ steps.image.outputs.name }}:latest

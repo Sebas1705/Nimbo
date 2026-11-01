@@ -112,11 +112,23 @@ class LabCatalog(val labs: List<LabDef>, val problems: List<String> = emptyList(
         /** Every `*.yml` of the directory, ordered by level then id. A broken file is reported, never fatal. */
         fun load(env: Map<String, String> = System.getenv()): LabCatalog {
             val dir = listOfNotNull(env["NIMBO_LABS_DIR"], "labs", "../labs").map(::File).firstOrNull { it.isDirectory }
-                ?: return LabCatalog(emptyList())
+                ?: return loadBundled()
+            val sources = dir.listFiles { f -> f.isFile && f.extension == "yml" }?.sortedBy { it.name }.orEmpty().map { it.name to it.readText() }
+            return assemble(sources)
+        }
+
+        /** The labs packed inside the jar: `<base>/index.txt` lists the files, one per line. */
+        fun loadBundled(base: String = "/defaults/labs"): LabCatalog {
+            val names = LabCatalog::class.java.getResourceAsStream("$base/index.txt")?.use { it.readBytes().decodeToString() }
+                ?.lines()?.map { it.trim() }?.filter { it.endsWith(".yml") }.orEmpty()
+            return assemble(names.mapNotNull { n -> LabCatalog::class.java.getResourceAsStream("$base/$n")?.use { n to it.readBytes().decodeToString() } })
+        }
+
+        private fun assemble(sources: List<Pair<String, String>>): LabCatalog {
             val labs = mutableListOf<LabDef>()
             val problems = mutableListOf<String>()
-            dir.listFiles { f -> f.isFile && f.extension == "yml" }?.sortedBy { it.name }?.forEach { file ->
-                val (lab, problem) = parseOne(file.readText(), file.name)
+            sources.forEach { (name, text) ->
+                val (lab, problem) = parseOne(text, name)
                 if (lab != null) labs += lab
                 if (problem != null) problems += problem
             }

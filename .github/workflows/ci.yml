@@ -35,3 +35,28 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+  package:
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci && npm run build
+      - run: ./gradlew :backend:buildFatJar --console=plain
+      - name: The jar starts and serves the UI
+        run: |
+          java -jar backend/build/libs/nimbo-*.jar &
+          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
+          curl -sf localhost:8080/ | grep -q "<title>Nimbo</title>"
+          curl -sf localhost:8080/api/labs | grep -q first-bucket
+          kill %1
