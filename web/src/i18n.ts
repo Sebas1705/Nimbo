@@ -1,0 +1,74 @@
+export type Lang = 'es' | 'en'
+
+const dict = {
+  es: {
+    tagline: 'Tu nube local, sin factura',
+    running: 'en marcha',
+    dockerUp: 'Docker',
+    dockerDown: 'Docker no disponible',
+    dockerHint: 'Arranca Docker Desktop y Nimbo lo detectará solo.',
+    start: 'Iniciar',
+    stop: 'Parar',
+    remove: 'Eliminar',
+    logs: 'Logs',
+    env: 'Variables',
+    copy: 'Copiar',
+    copied: 'Copiado',
+    close: 'Cerrar',
+    state_running: 'En marcha',
+    state_stopped: 'Parado',
+    state_not_created: 'Sin crear',
+    state_error: 'Error',
+    cloud_aws: 'Amazon Web Services',
+    cloud_azure: 'Microsoft Azure',
+    cloud_gcp: 'Google Cloud',
+    cloud_oci: 'Oracle Cloud',
+    cloud_other: 'Servicios comunes',
+    tokenTitle: 'Token de acceso',
+    tokenBody: 'Esta instancia de Nimbo está protegida. Pega el valor de NIMBO_API_TOKEN (Doppler).',
+    tokenSave: 'Entrar',
+    unauthorized: 'Token inválido',
+    noLogs: 'Sin logs todavía.',
+    loading: 'Cargando…',
+  },
+  en: {
+    tagline: 'Your local cloud, no bill',
+    running: 'running',
+    dockerUp: 'Docker',
+    dockerDown: 'Docker unavailable',
+    dockerHint: 'Start Docker Desktop and Nimbo will pick it up.',
+    start: 'Start',
+    stop: 'Stop',
+    remove: 'Remove',
+    logs: 'Logs',
+    env: 'Variables',
+    copy: 'Copy',
+    copied: 'Copied',
+    close: 'Close',
+    state_running: 'Running',
+    state_stopped: 'Stopped',
+    state_not_created: 'Not created',
+    state_error: 'Error',
+    cloud_aws: 'Amazon Web Services',
+    cloud_azure: 'Microsoft Azure',
+    cloud_gcp: 'Google Cloud',
+    cloud_oci: 'Oracle Cloud',
+    cloud_other: 'Common services',
+    tokenTitle: 'Access token',
+    tokenBody: 'This Nimbo instance is protected. Paste the value of NIMBO_API_TOKEN (Doppler).',
+    tokenSave: 'Sign in',
+    unauthorized: 'Invalid token',
+    noLogs: 'No logs yet.',
+    loading: 'Loading…',
+  },
+} as const
+
+export type Key = keyof (typeof dict)['es']
+
+export function translate(lang: Lang, key: Key): string {
+  return dict[lang][key]
+}
+
+export function detectLang(nav: Pick<Navigator, 'language'> = navigator): Lang {
+  return nav.language.toLowerCase().startsWith('es') ? 'es' : 'en'
+}

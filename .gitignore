@@ -1,0 +1,12 @@
+.gradle/
+build/
+.kotlin/
+*.class
+node_modules/
+web/dist/
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log

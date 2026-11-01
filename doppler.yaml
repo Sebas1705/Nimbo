@@ -1,0 +1,3 @@
+setup:
+  - project: nimbo
+    config: dev
