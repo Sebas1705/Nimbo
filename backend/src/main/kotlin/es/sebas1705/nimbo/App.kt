@@ -44,9 +44,16 @@ fun Application.nimboModule(
     config: NimboConfig,
     runtime: ContainerRuntime,
     stacks: StackCatalog = StackCatalog.builtIn,
+    inspector: Inspector = Inspector(JavaHttpGateway()),
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<InvalidName> { call, cause -> call.respond(HttpStatusCode.BadRequest, ErrorDto(cause.message ?: "Invalid name")) }
+        exception<EmulatorUnreachable> { call, cause -> call.respond(HttpStatusCode.ServiceUnavailable, ErrorDto(cause.message ?: "Emulator not reachable")) }
+        exception<EmulatorError> { call, cause ->
+            val status = if (cause.status == 404) HttpStatusCode.NotFound else HttpStatusCode.BadGateway
+            call.respond(status, ErrorDto(cause.message ?: "Emulator error"))
+        }
         exception<Throwable> { call, cause ->
             call.application.environment.log.error("Unhandled error on ${call.request.path()}", cause)
             call.respond(HttpStatusCode.InternalServerError, ErrorDto("Internal error"))
@@ -72,6 +79,7 @@ fun Application.nimboModule(
             }
             providerRoutes(config, runtime)
             stackRoutes(config, runtime, stacks)
+            inspectRoutes(inspector)
         }
 
         config.webDir?.let { dir ->

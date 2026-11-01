@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countRunning, failures, groupByCloud, type Provider } from './api'
+import { countRunning, failures, formatBytes, groupByCloud, type Provider } from './api'
 import { detectLang, translate } from './i18n'
 
 const p = (id: string, cloud: Provider['cloud'], state: Provider['state']): Provider => ({
@@ -50,5 +50,14 @@ describe('failures', () => {
     }
     expect(failures(action)).toEqual(['minio: port busy', 'azurite: failed'])
     expect(failures({ ...action, results: [{ id: 'redis', ok: true }] })).toEqual([])
+  })
+})
+
+describe('formatBytes', () => {
+  it('uses B, KB and MB with one decimal', () => {
+    expect(formatBytes(0)).toBe('0 B')
+    expect(formatBytes(1023)).toBe('1023 B')
+    expect(formatBytes(1536)).toBe('1.5 KB')
+    expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB')
   })
 })

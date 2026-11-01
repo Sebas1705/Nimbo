@@ -13,9 +13,10 @@ Early (M0-M2). Working today:
 - Docker-down detection, English and Spanish UI, light and dark theme.
 - Stacks defined in `nimbo.yml`: start or stop a whole group (AWS + MinIO, multicloud, event-driven...) in one click.
 - Export for a stack: `.env` variables, an OpenTofu/Terraform `nimbo_override.tf` that points the AWS provider at the emulator, and an AWS CLI profile.
+- Read-only resource inspector: S3 buckets and object previews, SQS queues with message peek, DynamoDB tables and items (typed values flattened to plain JSON), and Pub/Sub topics and subscriptions. Auto-refreshes and tells you when an emulator is down.
 - Optional API token and secrets read from [Doppler](https://www.doppler.com) (nothing sensitive is stored in the repo).
 
-Planned: resource inspector, fault injection with Toxiproxy, a fidelity matrix and guided labs.
+Planned: fault injection with Toxiproxy, a fidelity matrix and guided labs.
 
 ## Requirements
 
@@ -55,6 +56,10 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_STACKS_FILE` | Stacks file | `nimbo.yml`, then built-in stacks |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
+
+## Inspector
+
+The inspector talks to the emulators on `localhost:4566` (AWS) and `localhost:4588` (GCP). It is read-only and the emulators ignore signatures, so no credentials are involved. SQS peek uses visibility timeout 0: messages are not consumed, but their receive count goes up, exactly as on real SQS. Names are validated before they reach an emulator, queue URLs reported by an emulator are never followed, and XML with a DOCTYPE is rejected.
 
 ## Security notes
 

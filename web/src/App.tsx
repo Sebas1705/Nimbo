@@ -12,6 +12,7 @@ import {
   type Stack,
   type StackList,
 } from './api'
+import { InspectorView } from './Inspector'
 import { detectLang, translate, type Key, type Lang } from './i18n'
 
 type Panel = { kind: 'logs' | 'env'; provider: Provider } | null
@@ -30,6 +31,7 @@ export function App() {
   const [stackBusy, setStackBusy] = useState<string | null>(null)
   const [stackErrors, setStackErrors] = useState<Record<string, string>>({})
   const [exporting, setExporting] = useState<Stack | null>(null)
+  const [view, setView] = useState<'infra' | 'inspector'>('infra')
 
   const refresh = useCallback(async () => {
     try {
@@ -109,13 +111,23 @@ export function App() {
         </div>
       </header>
 
+      <nav className="views" role="tablist">
+        {(['infra', 'inspector'] as const).map((v) => (
+          <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'tab on' : 'tab'} onClick={() => setView(v)}>
+            {t(v === 'infra' ? 'viewInfra' : 'viewInspector')}
+          </button>
+        ))}
+      </nav>
+
       {docker && !docker.available && (
         <div className="banner" role="alert">
           {t('dockerHint')}
         </div>
       )}
 
-      <main>
+      {view === 'inspector' && <InspectorView t={t} />}
+
+      <main hidden={view !== 'infra'}>
         {stackList.stacks.length > 0 && (
           <section className="stacks" aria-label={t('stacks')}>
             <h2>{t('stacks')}</h2>
