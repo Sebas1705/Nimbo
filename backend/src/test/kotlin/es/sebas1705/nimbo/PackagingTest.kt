@@ -172,3 +172,68 @@ class EmulatorHostTest {
         assertTrue(log.urls.all { it.startsWith("http://localhost:") })
     }
 }
+
+class ComposeFileTest {
+    private fun repoFile(name: String) = listOf(File(name), File("../$name")).first { it.isFile }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun service(): Map<String, Any?> {
+        val root = org.yaml.snakeyaml.Yaml(org.yaml.snakeyaml.constructor.SafeConstructor(org.yaml.snakeyaml.LoaderOptions()))
+            .load<Map<String, Any?>>(repoFile("docker-compose.yml").readText())
+        return (root["services"] as Map<String, Map<String, Any?>>).getValue("nimbo")
+    }
+
+    @Test
+    fun `the port is published on loopback only`() {
+        val ports = (service()["ports"] as List<*>).map { it.toString() }
+        assertTrue(ports.isNotEmpty() && ports.all { it.startsWith("127.0.0.1:") }, "ports must stay on loopback: $ports")
+    }
+
+    @Test
+    fun `it runs the published image and can drive the host docker and reach the emulators`() {
+        val s = service()
+        assertTrue(s["image"].toString().startsWith("ghcr.io/sebas1705/nimbo:"))
+        assertTrue((s["volumes"] as List<*>).any { it.toString() == "/var/run/docker.sock:/var/run/docker.sock" })
+        assertTrue((s["extra_hosts"] as List<*>).any { it.toString() == "host.docker.internal:host-gateway" })
+        assertNotNull(s["healthcheck"])
+        assertEquals("unless-stopped", s["restart"])
+        assertNotNull(s["build"], "up --build must work from a checkout")
+    }
+
+    @Test
+    fun `the environment lists variable names only, so no secret can be committed`() {
+        val env = (service()["environment"] as List<*>).map { it.toString() }
+        assertTrue(env.isNotEmpty())
+        assertTrue(env.none { '=' in it }, "environment entries must be bare names: $env")
+        assertTrue(env.all { it.startsWith("NIMBO_") })
+    }
+
+    @Test
+    fun `every variable the compose file passes is documented in the env template`() {
+        val template = repoFile(".env.example").readText()
+        val env = (service()["environment"] as List<*>).map { it.toString() }
+        env.forEach { assertContains(template, it, message = "$it is missing from .env.example") }
+    }
+
+    @Test
+    fun `the env template assigns nothing, every setting is commented out`() {
+        val assigned = repoFile(".env.example").readText().lines().filter { it.isNotBlank() && !it.trimStart().startsWith("#") }
+        assertTrue(assigned.isEmpty(), "uncomment-to-use only, found: $assigned")
+    }
+
+    @Test
+    fun `a real env file can never be committed`() {
+        val ignore = repoFile(".gitignore").readText().lines().map { it.trim() }
+        assertContains(ignore, ".env")
+        assertContains(ignore, "!.env.example")
+    }
+
+    @Test
+    fun `the missing secret message explains both ways of providing it`() = kotlinx.coroutines.runBlocking {
+        val runtime = CliContainerRuntime { _, _ -> ExecResult(0, "") }
+        val message = runtime.start(Catalog.find("postgres")!!, emptyMap()).exceptionOrNull()!!.message!!
+        assertContains(message, "NIMBO_POSTGRES_PASSWORD")
+        assertContains(message, ".env")
+        assertContains(message, "doppler")
+    }
+}

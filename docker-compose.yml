@@ -1,0 +1,39 @@
+# Nimbo in one command:   docker compose up -d      then open http://127.0.0.1:8080
+#
+# Nimbo drives the Docker of this machine through its socket, which is root-equivalent access.
+# That is why the port is published on loopback only: do not change 127.0.0.1 to 0.0.0.0.
+#
+# Optional settings go in a .env file next to this one (copy .env.example). Nothing is required.
+name: nimbo
+
+services:
+  nimbo:
+    image: ghcr.io/sebas1705/nimbo:${NIMBO_VERSION:-latest}
+    # `docker compose up -d --build` builds the image from this checkout instead of pulling it.
+    build:
+      context: .
+    container_name: nimbo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NIMBO_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      # Docker Desktop resolves this name by itself; plain Linux needs the alias. Nimbo uses it to reach
+      # the emulators, which it publishes on the host and not on its own container.
+      - "host.docker.internal:host-gateway"
+    # Names only: the value comes from your shell or .env, and a variable you do not set stays unset.
+    environment:
+      - NIMBO_API_TOKEN
+      - NIMBO_MINIO_USER
+      - NIMBO_MINIO_PASSWORD
+      - NIMBO_POSTGRES_PASSWORD
+      - NIMBO_ALLOWED_HOSTS
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 10s
+      retries: 3

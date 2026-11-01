@@ -73,7 +73,7 @@ class CliContainerRuntime(private val exec: Exec = ProcessExec()) : ContainerRun
         val missing = def.secretEnv.values.filter { hostEnv[it].isNullOrBlank() }
         if (missing.isNotEmpty()) {
             return Result.failure(
-                IllegalStateException("Missing secrets: ${missing.joinToString()}. Run Nimbo with 'doppler run --'."),
+                IllegalStateException("Missing secrets: ${missing.joinToString()}. Set them in Nimbo's environment (a .env file with docker compose, or 'doppler run --')."),
             )
         }
         val existing = containers()[def.id]

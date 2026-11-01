@@ -34,16 +34,25 @@ java -jar nimbo-0.1.0.jar
 # then open http://127.0.0.1:8080
 ```
 
-**Docker** (no Java needed). The container drives the Docker of your machine through its socket, which is root-equivalent access, so publish the port on loopback only and never expose it:
+**Docker Compose** (no Java needed, the easiest way). From a checkout, or with just [`docker-compose.yml`](docker-compose.yml) saved in a folder:
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 \
+docker compose up -d
+# then open http://127.0.0.1:8080
+```
+
+It pulls the published image, restarts it with Docker, reports health and publishes the port on loopback only. Everything is optional; to set a port, an API token or the MinIO and PostgreSQL credentials, copy [`.env.example`](.env.example) to `.env` (or run `doppler run -- docker compose up -d`). Update with `docker compose pull && docker compose up -d`, stop with `docker compose down`, and use `docker compose up -d --build` to build the image from the checkout.
+
+The container drives the Docker of your machine through its socket, which is root-equivalent access, so never publish its port beyond loopback. In this mode Nimbo reaches the emulators at `host.docker.internal` (`NIMBO_EMULATOR_HOST`), which the compose file maps for Linux and Docker Desktop resolves by itself.
+
+**Plain `docker run`**, if you prefer:
+
+```bash
+docker run -d --name nimbo --restart unless-stopped -p 127.0.0.1:8080:8080 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --add-host=host.docker.internal:host-gateway \
   ghcr.io/sebas1705/nimbo
 ```
-
-`--add-host` is only needed on Linux; Docker Desktop resolves `host.docker.internal` by itself. In this mode Nimbo reaches the emulators at `host.docker.internal`, set through `NIMBO_EMULATOR_HOST`.
 
 **From source** (JDK 21 and Node 22+; the [Doppler CLI](https://docs.doppler.com/docs/install-cli) only if you want the secrets-backed providers, MinIO and PostgreSQL, and the API token):
 
