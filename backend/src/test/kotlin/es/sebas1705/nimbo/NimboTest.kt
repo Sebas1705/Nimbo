@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-private class FakeRuntime(
+internal class FakeRuntime(
     var docker: DockerStatusDto = DockerStatusDto(true, "29.0"),
     val live: MutableMap<String, ContainerInfo> = mutableMapOf(),
     var failStart: String? = null,

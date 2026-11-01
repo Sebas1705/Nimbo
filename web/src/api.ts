@@ -22,6 +22,34 @@ export interface Health {
   authRequired: boolean
 }
 
+export interface Stack {
+  id: string
+  description: string
+  providers: string[]
+  state: 'running' | 'partial' | 'stopped'
+  running: number
+  total: number
+}
+
+export interface StackList {
+  stacks: Stack[]
+  problems: string[]
+}
+
+export interface StackAction {
+  id: string
+  action: 'up' | 'down'
+  results: Array<{ id: string; ok: boolean; error?: string | null }>
+}
+
+export type ExportFormat = 'env' | 'tofu' | 'awscli'
+
+export interface ExportResult {
+  format: ExportFormat
+  filename: string
+  content: string
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -68,6 +96,16 @@ export const api = {
   remove: (id: string) => request<void>(`/api/providers/${id}`, { method: 'DELETE' }),
   logs: (id: string) => request<{ lines: string }>(`/api/providers/${id}/logs?tail=300`),
   env: (id: string) => request<{ dotenv: string }>(`/api/providers/${id}/env`),
+  stacks: () => request<StackList>('/api/stacks'),
+  stackUp: (id: string) => request<StackAction>(`/api/stacks/${id}/up`, { method: 'POST' }),
+  stackDown: (id: string) => request<StackAction>(`/api/stacks/${id}/down`, { method: 'POST' }),
+  stackExport: (id: string, format: ExportFormat) =>
+    request<ExportResult>(`/api/stacks/${id}/export?format=${format}`),
+}
+
+/** Human-readable failures of a stack action, e.g. "redis: port busy". Empty when everything worked. */
+export function failures(action: StackAction): string[] {
+  return action.results.filter((r) => !r.ok).map((r) => `${r.id}: ${r.error ?? 'failed'}`)
 }
 
 export const CLOUD_ORDER: Provider['cloud'][] = ['aws', 'azure', 'gcp', 'oci', 'other']

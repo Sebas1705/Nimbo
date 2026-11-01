@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countRunning, groupByCloud, type Provider } from './api'
+import { countRunning, failures, groupByCloud, type Provider } from './api'
 import { detectLang, translate } from './i18n'
 
 const p = (id: string, cloud: Provider['cloud'], state: Provider['state']): Provider => ({
@@ -34,5 +34,21 @@ describe('i18n', () => {
   it('has the same keys in both languages', () => {
     expect(translate('es', 'start')).toBe('Iniciar')
     expect(translate('en', 'start')).toBe('Start')
+  })
+})
+
+describe('failures', () => {
+  it('lists only failed steps with their reason', () => {
+    const action = {
+      id: 's',
+      action: 'up' as const,
+      results: [
+        { id: 'redis', ok: true },
+        { id: 'minio', ok: false, error: 'port busy' },
+        { id: 'azurite', ok: false },
+      ],
+    }
+    expect(failures(action)).toEqual(['minio: port busy', 'azurite: failed'])
+    expect(failures({ ...action, results: [{ id: 'redis', ok: true }] })).toEqual([])
   })
 })

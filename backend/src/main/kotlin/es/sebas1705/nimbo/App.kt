@@ -40,7 +40,11 @@ data class NimboConfig(
     }
 }
 
-fun Application.nimboModule(config: NimboConfig, runtime: ContainerRuntime) {
+fun Application.nimboModule(
+    config: NimboConfig,
+    runtime: ContainerRuntime,
+    stacks: StackCatalog = StackCatalog.builtIn,
+) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
         exception<Throwable> { call, cause ->
@@ -67,6 +71,7 @@ fun Application.nimboModule(config: NimboConfig, runtime: ContainerRuntime) {
                 call.respond(HealthDto("ok", authRequired = config.apiToken != null))
             }
             providerRoutes(config, runtime)
+            stackRoutes(config, runtime, stacks)
         }
 
         config.webDir?.let { dir ->
@@ -125,6 +130,69 @@ private fun Route.providerRoutes(config: NimboConfig, runtime: ContainerRuntime)
             call.respond(EnvDto(def.id, def.endpoints, def.endpoints.entries.joinToString("\n") { "${it.key}=${it.value}" }))
         }
     }
+}
+
+private fun Route.stackRoutes(config: NimboConfig, runtime: ContainerRuntime, stacks: StackCatalog) {
+    get("/stacks") {
+        val live = if (runtime.status().available) runtime.containers() else emptyMap()
+        call.respond(StackListDto(stacks.stacks.map { it.toDto(live) }, stacks.problems))
+    }
+
+    route("/stacks/{id}") {
+        post("/up") {
+            val stack = call.stack(stacks) ?: return@post
+            val live = runtime.containers()
+            // Sequential on purpose: parallel `docker run` of several big images is hard to read when one fails.
+            val results = stack.providers.map { id ->
+                if (live[id]?.running == true) return@map StepResultDto(id, ok = true)
+                runtime.start(Catalog.find(id)!!, config.hostEnv).toStep(id)
+            }
+            call.respond(StackActionDto(stack.id, "up", results))
+        }
+        post("/down") {
+            val stack = call.stack(stacks) ?: return@post
+            val live = runtime.containers()
+            val results = stack.providers.reversed().map { id ->
+                if (live[id]?.running != true) return@map StepResultDto(id, ok = true)
+                runtime.stop(Catalog.find(id)!!).toStep(id)
+            }
+            call.respond(StackActionDto(stack.id, "down", results))
+        }
+        get("/export") {
+            val stack = call.stack(stacks) ?: return@get
+            val format = ExportFormat.of(call.request.queryParameters["format"])
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorDto("format must be env, tofu or awscli"))
+            val defs = stack.providers.mapNotNull(Catalog::find)
+            if (format != ExportFormat.ENV && defs.none { it.id == "floci-aws" }) {
+                return@get call.respond(HttpStatusCode.Conflict, ErrorDto("Stack '${stack.id}' has no AWS emulator (floci-aws)"))
+            }
+            val content = when (format) {
+                ExportFormat.ENV -> Exports.env(defs)
+                ExportFormat.TOFU -> Exports.tofuAwsOverride()
+                ExportFormat.AWS_CLI -> Exports.awsCliProfile()
+            }
+            call.respond(ExportDto(format.id, format.filename, content))
+        }
+    }
+}
+
+private fun Result<Unit>.toStep(id: String) = StepResultDto(id, isSuccess, exceptionOrNull()?.message)
+
+private fun StackDef.toDto(live: Map<String, ContainerInfo>): StackDto {
+    val running = providers.count { live[it]?.running == true }
+    val state = when (running) {
+        0 -> "stopped"
+        providers.size -> "running"
+        else -> "partial"
+    }
+    return StackDto(id, description, providers, state, running, providers.size)
+}
+
+private suspend fun io.ktor.server.application.ApplicationCall.stack(stacks: StackCatalog): StackDef? {
+    val id = parameters["id"].orEmpty()
+    val stack = stacks.find(id)
+    if (stack == null) respond(HttpStatusCode.NotFound, ErrorDto("Unknown stack '$id'"))
+    return stack
 }
 
 private suspend fun io.ktor.server.application.ApplicationCall.provider(): ProviderDef? {

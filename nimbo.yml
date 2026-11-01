@@ -1,0 +1,18 @@
+# Stacks are groups of providers that start and stop together.
+# Provider ids come from the built-in catalog (see GET /api/providers).
+stacks:
+  aws-basic:
+    description: AWS emulator plus S3-compatible storage
+    providers: [floci-aws, minio]
+
+  multicloud:
+    description: AWS, Azure and GCP emulators side by side
+    providers: [floci-aws, floci-azure, floci-gcp]
+
+  event-driven:
+    description: Messaging and data stores for event-driven labs
+    providers: [floci-aws, redpanda, postgres, redis]
+
+  storage-lab:
+    description: Blob and object storage on two clouds
+    providers: [azurite, minio]

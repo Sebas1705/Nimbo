@@ -6,14 +6,16 @@ It does not emulate any cloud by itself. It orchestrates existing emulators ([Fl
 
 ## Status
 
-Early (M0/M1). Working today:
+Early (M0-M2). Working today:
 
 - Catalog of 9 providers, grouped by cloud, started and stopped with one click.
 - Live state of every container, logs panel and copy-ready client environment variables.
 - Docker-down detection, English and Spanish UI, light and dark theme.
+- Stacks defined in `nimbo.yml`: start or stop a whole group (AWS + MinIO, multicloud, event-driven...) in one click.
+- Export for a stack: `.env` variables, an OpenTofu/Terraform `nimbo_override.tf` that points the AWS provider at the emulator, and an AWS CLI profile.
 - Optional API token and secrets read from [Doppler](https://www.doppler.com) (nothing sensitive is stored in the repo).
 
-Planned: stack files (`nimbo.yml`), Terraform/OpenTofu endpoint overrides, resource inspector, fault injection with Toxiproxy, a fidelity matrix and guided labs.
+Planned: resource inspector, fault injection with Toxiproxy, a fidelity matrix and guided labs.
 
 ## Requirements
 
@@ -50,6 +52,7 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_POSTGRES_PASSWORD` | PostgreSQL password | required to start PostgreSQL |
 | `NIMBO_WEB_DIR` | Directory with the built UI | `web/dist` |
 | `NIMBO_DOCKER_BIN` | Docker CLI to use | `docker` |
+| `NIMBO_STACKS_FILE` | Stacks file | `nimbo.yml`, then built-in stacks |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
 

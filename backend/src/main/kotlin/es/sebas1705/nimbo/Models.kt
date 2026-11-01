@@ -49,3 +49,26 @@ data class EnvDto(val id: String, val variables: Map<String, String>, val dotenv
 
 @Serializable
 data class ErrorDto(val error: String)
+
+@Serializable
+data class StackDto(
+    val id: String,
+    val description: String,
+    val providers: List<String>,
+    /** running (all up), partial, or stopped (none up). */
+    val state: String,
+    val running: Int,
+    val total: Int,
+)
+
+@Serializable
+data class StackListDto(val stacks: List<StackDto>, val problems: List<String>)
+
+@Serializable
+data class StepResultDto(val id: String, val ok: Boolean, val error: String? = null)
+
+@Serializable
+data class StackActionDto(val id: String, val action: String, val results: List<StepResultDto>)
+
+@Serializable
+data class ExportDto(val format: String, val filename: String, val content: String)

@@ -101,3 +101,21 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .gate { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
 .gate .card { width: min(380px, 100%); }
 .gate input { padding: 9px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; }
+
+.stacks { margin-bottom: 34px; }
+.stacks h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin: 0 0 12px; }
+.stack-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.stack { background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface)); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.stack[data-state='running'] { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.stack[data-state='partial'] { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.stack h3 { margin: 0; font-size: 16px; }
+.pill.stack-running { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, var(--surface-2)); }
+.pill.stack-running .dot { background: var(--ok); }
+.pill.stack-partial { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, var(--surface-2)); }
+.pill.stack-partial .dot { background: var(--warn); }
+.banner ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+
+.tabs { display: flex; gap: 6px; padding: 10px 16px 0; flex-wrap: wrap; }
+.tab { border-radius: 8px 8px 0 0; }
+.tab.on { background: var(--accent); border-color: var(--accent); color: #0b0e17; font-weight: 600; }
+.hint { margin: 10px 16px 0; font-size: 12px; color: var(--muted); }

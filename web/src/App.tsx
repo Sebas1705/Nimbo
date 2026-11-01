@@ -4,9 +4,13 @@ import {
   api,
   countRunning,
   groupByCloud,
+  failures,
   tokenStore,
   type DockerStatus,
+  type ExportFormat,
   type Provider,
+  type Stack,
+  type StackList,
 } from './api'
 import { detectLang, translate, type Key, type Lang } from './i18n'
 
@@ -22,12 +26,17 @@ export function App() {
   const [busy, setBusy] = useState<Set<string>>(new Set())
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [panel, setPanel] = useState<Panel>(null)
+  const [stackList, setStackList] = useState<StackList>({ stacks: [], problems: [] })
+  const [stackBusy, setStackBusy] = useState<string | null>(null)
+  const [stackErrors, setStackErrors] = useState<Record<string, string>>({})
+  const [exporting, setExporting] = useState<Stack | null>(null)
 
   const refresh = useCallback(async () => {
     try {
-      const [d, p] = await Promise.all([api.docker(), api.providers()])
+      const [d, p, s] = await Promise.all([api.docker(), api.providers(), api.stacks()])
       setDocker(d)
       setProviders(p)
+      setStackList(s)
       setNeedsToken(false)
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) setNeedsToken(true)
@@ -53,6 +62,20 @@ export function App() {
         n.delete(p.id)
         return n
       })
+      refresh()
+    }
+  }
+
+  const runStack = async (s: Stack, action: 'stackUp' | 'stackDown') => {
+    setStackBusy(s.id)
+    setStackErrors((e) => ({ ...e, [s.id]: '' }))
+    try {
+      const result = await api[action](s.id)
+      setStackErrors((e) => ({ ...e, [s.id]: failures(result).join(' · ') }))
+    } catch (e) {
+      setStackErrors((prev) => ({ ...prev, [s.id]: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setStackBusy(null)
       refresh()
     }
   }
@@ -93,6 +116,56 @@ export function App() {
       )}
 
       <main>
+        {stackList.stacks.length > 0 && (
+          <section className="stacks" aria-label={t('stacks')}>
+            <h2>{t('stacks')}</h2>
+            <div className="stack-row">
+              {stackList.stacks.map((s) => (
+                <article key={s.id} className="stack" data-state={s.state}>
+                  <div className="card-head">
+                    <h3>{s.id}</h3>
+                    <span className={`pill stack-${s.state}`}>
+                      <i className="dot" />
+                      {t(`stack_${s.state}` as Key)} · {s.running}/{s.total}
+                    </span>
+                  </div>
+                  <p className="desc">{s.description}</p>
+                  <div className="meta">
+                    {s.providers.map((id) => (
+                      <code key={id}>{id}</code>
+                    ))}
+                  </div>
+                  {stackErrors[s.id] && <p className="err">{stackErrors[s.id]}</p>}
+                  <div className="actions">
+                    <button
+                      className="primary"
+                      disabled={stackBusy !== null || !docker?.available || s.state === 'running'}
+                      onClick={() => runStack(s, 'stackUp')}
+                    >
+                      {stackBusy === s.id ? '…' : t('up')}
+                    </button>
+                    <button className="ghost" disabled={stackBusy !== null || s.running === 0} onClick={() => runStack(s, 'stackDown')}>
+                      {t('down')}
+                    </button>
+                    <button className="ghost" onClick={() => setExporting(s)}>
+                      {t('export')}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            {stackList.problems.length > 0 && (
+              <div className="banner" role="alert">
+                <b>{t('problems')}</b>
+                <ul>
+                  {stackList.problems.map((p) => (
+                    <li key={p}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
         {providers.length === 0 && <p className="muted">{t('loading')}</p>}
         {groups.map(([cloud, list]) => (
           <section key={cloud} className={`cloud cloud-${cloud}`}>
@@ -145,6 +218,7 @@ export function App() {
       </main>
 
       {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}
+      {exporting && <ExportPanel stack={exporting} t={t} onClose={() => setExporting(null)} />}
     </div>
   )
 }
@@ -193,6 +267,75 @@ function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t: (k: Ke
         </div>
       </div>
       <pre>{text || t('noLogs')}</pre>
+    </aside>
+  )
+}
+
+const FORMATS: ExportFormat[] = ['env', 'tofu', 'awscli']
+
+function ExportPanel({ stack, t, onClose }: { stack: Stack; t: (k: Key) => string; onClose: () => void }) {
+  const [format, setFormat] = useState<ExportFormat>('env')
+  const [content, setContent] = useState('')
+  const [filename, setFilename] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    api
+      .stackExport(stack.id, format)
+      .then((r) => {
+        if (!alive) return
+        setContent(r.content)
+        setFilename(r.filename)
+      })
+      .catch((e) => {
+        if (!alive) return
+        setContent(e instanceof Error ? e.message : String(e))
+        setFilename('')
+      })
+    return () => {
+      alive = false
+    }
+  }, [stack.id, format])
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+
+  return (
+    <aside className="panel" role="dialog" aria-label={`${stack.id} ${t('export')}`}>
+      <div className="panel-head">
+        <h3>
+          {stack.id} · {t('export')}
+        </h3>
+        <div>
+          <button className="ghost" onClick={copy}>
+            {copied ? t('copied') : t('copy')}
+          </button>
+          <button className="ghost" onClick={onClose}>
+            {t('close')}
+          </button>
+        </div>
+      </div>
+      <div className="tabs" role="tablist">
+        {FORMATS.map((f) => (
+          <button key={f} role="tab" aria-selected={f === format} className={f === format ? 'tab on' : 'tab'} onClick={() => setFormat(f)}>
+            {t(`fmt_${f}` as Key)}
+          </button>
+        ))}
+      </div>
+      {filename && (
+        <p className="hint">
+          {t('exportHint')} <code>{filename}</code>
+        </p>
+      )}
+      <pre>{content}</pre>
     </aside>
   )
 }
