@@ -70,3 +70,7 @@ cd web && npm test
 ## License
 
 MIT
+
+## Example
+
+[`examples/aws-lab`](examples/aws-lab) provisions an S3 bucket, an SQS queue and a DynamoDB table on Floci with OpenTofu, using the override Nimbo generates.
