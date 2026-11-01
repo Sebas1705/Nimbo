@@ -1,0 +1,48 @@
+id: queue-it-up
+level: 1
+stack: aws-basic
+title:
+  en: Queue it up
+  es: Ponlo en cola
+summary:
+  en: Decouple a producer from a consumer with an SQS queue and send your first events.
+  es: Desacopla un productor de un consumidor con una cola SQS y envía tus primeros eventos.
+steps:
+  - en: Create a standard queue named lab-orders.
+    es: Crea una cola estándar llamada lab-orders.
+  - en: 'Send three messages. At least one body must contain "event":"created", for example {"orderId":1,"event":"created"}.'
+    es: 'Envía tres mensajes. Al menos un cuerpo debe contener "event":"created", por ejemplo {"orderId":1,"event":"created"}.'
+  - en: Verify. The Inspector tab shows the queue and lets you peek at the messages.
+    es: Verifica. La pestaña Inspector muestra la cola y deja ver los mensajes.
+hints:
+  - en: Peeking does not delete messages, but every look raises their receive count, which is how a dead-letter queue would notice a poison message.
+    es: Mirar no borra los mensajes, pero cada vistazo sube su contador de recepciones, que es como una cola de mensajes muertos detectaría un mensaje venenoso.
+solution:
+  - title:
+      en: AWS CLI
+      es: AWS CLI
+    code: |
+      aws --endpoint-url http://localhost:4566 sqs create-queue --queue-name lab-orders
+      Q=http://localhost:4566/000000000000/lab-orders
+      aws --endpoint-url http://localhost:4566 sqs send-message --queue-url $Q --message-body '{"orderId":1,"event":"created"}'
+      aws --endpoint-url http://localhost:4566 sqs send-message --queue-url $Q --message-body '{"orderId":2,"event":"paid"}'
+      aws --endpoint-url http://localhost:4566 sqs send-message --queue-url $Q --message-body '{"orderId":3,"event":"shipped"}'
+checks:
+  - type: sqs.queue
+    name: lab-orders
+    label:
+      en: Queue lab-orders exists
+      es: Existe la cola lab-orders
+  - type: sqs.messages
+    queue: lab-orders
+    atLeast: 3
+    label:
+      en: The queue holds at least 3 messages
+      es: La cola tiene al menos 3 mensajes
+  - type: sqs.messages
+    queue: lab-orders
+    contains: '"event":"created"'
+    atLeast: 1
+    label:
+      en: One message is a "created" event
+      es: Un mensaje es un evento "created"

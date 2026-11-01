@@ -1,0 +1,47 @@
+id: infra-as-code
+level: 3
+stack: aws-basic
+title:
+  en: Infrastructure as code
+  es: Infraestructura como código
+summary:
+  en: Provision a bucket, a queue and a table with OpenTofu/Terraform against the emulator, the way you would on real AWS.
+  es: Aprovisiona un bucket, una cola y una tabla con OpenTofu/Terraform contra el emulador, igual que harías en AWS real.
+steps:
+  - en: Copy examples/aws-lab to a new folder and export the stack as OpenTofu / Terraform into it as nimbo_override.tf.
+    es: Copia examples/aws-lab a una carpeta nueva y exporta el stack como OpenTofu / Terraform en ella con el nombre nimbo_override.tf.
+  - en: Change the resources so they are called lab-iac-bucket, lab-iac-queue and lab-iac-table.
+    es: Cambia los recursos para que se llamen lab-iac-bucket, lab-iac-queue y lab-iac-table.
+  - en: Run tofu init and tofu apply, then verify.
+    es: Ejecuta tofu init y tofu apply, y verifica.
+  - en: Run tofu plan again. A clean plan means your code and the emulator agree.
+    es: Ejecuta tofu plan otra vez. Un plan limpio significa que tu código y el emulador coinciden.
+hints:
+  - en: The SQS queue can take about 25 seconds to create; the AWS provider waits for its attributes to settle.
+    es: La cola SQS puede tardar unos 25 segundos en crearse; el proveedor de AWS espera a que sus atributos se asienten.
+solution:
+  - title:
+      en: Shell
+      es: Terminal
+    code: |
+      cp -r examples/aws-lab my-lab && cd my-lab
+      sed -i 's/nimbo-lab-bucket/lab-iac-bucket/; s/nimbo-lab-queue/lab-iac-queue/; s/nimbo-lab-table/lab-iac-table/' main.tf
+      # save the exported override here as nimbo_override.tf
+      tofu init && tofu apply -auto-approve && tofu plan
+checks:
+  - type: s3.bucket
+    name: lab-iac-bucket
+    label:
+      en: Bucket lab-iac-bucket exists
+      es: Existe el bucket lab-iac-bucket
+  - type: sqs.queue
+    name: lab-iac-queue
+    label:
+      en: Queue lab-iac-queue exists
+      es: Existe la cola lab-iac-queue
+  - type: dynamodb.table
+    name: lab-iac-table
+    key: id
+    label:
+      en: Table lab-iac-table exists with partition key id
+      es: Existe la tabla lab-iac-table con clave de partición id

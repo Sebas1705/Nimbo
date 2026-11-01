@@ -75,6 +75,27 @@ export interface ChaosTarget {
 }
 export interface ChaosView { available: boolean; presets: ChaosPreset[]; targets: ChaosTarget[] }
 
+export type FitStatus = 'full' | 'partial' | 'missing' | 'offline'
+export interface FitStep { name: string; status: 'pass' | 'fail' | 'skipped'; detail?: string | null; ms: number }
+export interface FitSuite { id: string; cloud: string; name: string; status: FitStatus; steps: FitStep[]; ms: number }
+export interface FitRef { cloud: string; id: string; name: string }
+export interface FitState { running: boolean; updatedAt: number | null; catalog: FitRef[]; results: FitSuite[]; summary: Record<string, number> }
+
+export interface L10n { en: string; es: string }
+export interface Lab {
+  id: string
+  level: number
+  stack?: string | null
+  title: L10n
+  summary: L10n
+  steps: L10n[]
+  hints: L10n[]
+  solution: Array<{ title?: L10n | null; code: string }>
+  checks: Array<{ label: L10n }>
+}
+export interface LabList { labs: Lab[]; problems: string[] }
+export interface LabVerify { id: string; passed: boolean; results: Array<{ index: number; ok: boolean; detail?: string | null }> }
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -158,6 +179,44 @@ export const chaos = {
   removeToxic: (id: string, name: string) =>
     request<ChaosTarget>(`/api/chaos/targets/${seg(id)}/toxics/${seg(name)}`, { method: 'DELETE' }),
   reset: () => request<ChaosView>('/api/chaos/reset', { method: 'POST' }),
+}
+
+export const fidelity = {
+  state: () => request<FitState>('/api/fidelity'),
+  run: (cloud?: string) => request<FitState>('/api/fidelity/run' + (cloud ? `?cloud=${cloud}` : ''), { method: 'POST' }),
+}
+
+export const labs = {
+  list: () => request<LabList>('/api/labs'),
+  verify: (id: string) => request<LabVerify>(`/api/labs/${seg(id)}/verify`, { method: 'POST' }),
+}
+
+/** Share of fidelity steps that passed over everything that was run, 0..100 (0 when nothing ran). */
+export function coverage(results: FitSuite[]): number {
+  const steps = results.flatMap((r) => r.steps)
+  if (steps.length === 0) return 0
+  return Math.round((steps.filter((s) => s.status === 'pass').length / steps.length) * 100)
+}
+
+const DONE_KEY = 'nimbo.labs.done'
+
+/** Completed lab ids, kept in this browser only. */
+export const labProgress = {
+  load(): Set<string> {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DONE_KEY) ?? '[]')
+      return new Set(Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [])
+    } catch {
+      return new Set()
+    }
+  },
+  save(done: Set<string>) {
+    try {
+      localStorage.setItem(DONE_KEY, JSON.stringify([...done]))
+    } catch {
+      /* private mode: progress only lives for this session */
+    }
+  },
 }
 
 /** What is wrong with a target, for the status pill: outage beats faults beats healthy. */

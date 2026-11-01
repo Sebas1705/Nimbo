@@ -26,7 +26,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** Just enough of Toxiproxy's HTTP API to exercise [Chaos]; keeps state and records every call. */
-private class FakeToxiproxy : HttpGateway {
+internal class FakeToxiproxy : HttpGateway {
     class Proxy(val name: String, val listen: String, val upstream: String, var enabled: Boolean, val toxics: MutableList<JsonObject> = mutableListOf())
 
     val proxies = linkedMapOf<String, Proxy>()
@@ -267,6 +267,17 @@ class ChaosExportsTest {
         assertContains(chaos, "KAFKA_BOOTSTRAP_SERVERS=localhost:9092", message = "redpanda has no proxy")
         assertContains(chaos, "Toxiproxy")
         assertFalse(plain.contains("14566"))
+    }
+
+    @Test
+    fun `gcp and azure endpoints follow the proxy ports too`() {
+        val defs = listOf("floci-gcp", "floci-azure").map { Catalog.find(it)!! }
+        assertContains(Exports.env(defs), "PUBSUB_EMULATOR_HOST=localhost:4588")
+        val chaos = Exports.env(defs, chaos = true)
+        assertContains(chaos, "PUBSUB_EMULATOR_HOST=localhost:14588")
+        assertContains(chaos, "STORAGE_EMULATOR_HOST=http://localhost:14588")
+        assertContains(chaos, "AZURE_STORAGE_BLOB_ENDPOINT=http://localhost:14577/devstoreaccount1")
+        assertContains(chaos, "GOOGLE_CLOUD_PROJECT=floci-local", message = "non-endpoint values are untouched")
     }
 
     @Test

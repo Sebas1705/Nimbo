@@ -1,0 +1,51 @@
+id: latency-drill
+level: 3
+stack: aws-basic
+title:
+  en: Latency drill
+  es: Simulacro de latencia
+summary:
+  en: Make a client survive a slow dependency with timeouts and retries, then prove it with a real fault.
+  es: Haz que un cliente sobreviva a una dependencia lenta con timeouts y reintentos, y demuéstralo con un fallo real.
+steps:
+  - en: Start Floci AWS and Toxiproxy, and create a queue named lab-resilient.
+    es: Inicia Floci AWS y Toxiproxy, y crea una cola llamada lab-resilient.
+  - en: In the Chaos tab add at least 1500 ms of latency to Floci AWS. Leave it on.
+    es: En la pestaña Caos añade al menos 1500 ms de latencia a Floci AWS. Déjala activa.
+  - en: Write a small client that sends a message through the chaos port (http://localhost:14566) with a 1 second timeout and up to 5 retries with backoff. It will time out at first; make that a retry, not a crash.
+    es: Escribe un cliente pequeño que envíe un mensaje por el puerto de caos (http://localhost:14566) con un timeout de 1 segundo y hasta 5 reintentos con espera creciente. Al principio dará timeout; haz que sea un reintento y no un fallo.
+  - en: Verify while the fault is still active. Then clear it and watch the same client succeed on the first try.
+    es: Verifica con el fallo aún activo. Luego quítalo y comprueba que el mismo cliente funciona a la primera.
+hints:
+  - en: A timeout is ambiguous, the request may have been processed. Send an idempotency key or accept duplicates.
+    es: Un timeout es ambiguo, la petición pudo procesarse. Envía una clave de idempotencia o acepta duplicados.
+solution:
+  - title:
+      en: Retry loop (bash)
+      es: Bucle de reintentos (bash)
+    code: |
+      for i in 1 2 3 4 5; do
+        aws --endpoint-url http://localhost:14566 --cli-read-timeout 1 --cli-connect-timeout 1 \
+          sqs send-message --queue-url http://localhost:14566/000000000000/lab-resilient --message-body "attempt $i" && break
+        sleep $((i * 2))
+      done
+checks:
+  - type: sqs.queue
+    name: lab-resilient
+    label:
+      en: Queue lab-resilient exists
+      es: Existe la cola lab-resilient
+  - type: chaos.fault
+    target: floci-aws
+    preset: latency
+    attribute: latency
+    atLeast: 1500
+    label:
+      en: A latency fault of at least 1500 ms is active on Floci AWS
+      es: Hay un fallo de latencia de al menos 1500 ms activo en Floci AWS
+  - type: sqs.messages
+    queue: lab-resilient
+    atLeast: 1
+    label:
+      en: Your client managed to deliver at least one message
+      es: Tu cliente logró entregar al menos un mensaje

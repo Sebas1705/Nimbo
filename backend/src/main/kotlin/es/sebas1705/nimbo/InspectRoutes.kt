@@ -23,7 +23,7 @@ fun Route.inspectRoutes(inspector: Inspector) {
             get("/dynamodb/tables/{table}/items") { call.respond(inspector.items(call.parameters["table"].orEmpty())) }
         }
         get("/gcp/pubsub") {
-            call.respond(inspector.pubsub(call.request.queryParameters["project"] ?: "nimbo-local"))
+            call.respond(inspector.pubsub(call.request.queryParameters["project"] ?: "floci-local"))
         }
     }
 }

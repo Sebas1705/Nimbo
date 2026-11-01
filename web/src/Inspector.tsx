@@ -195,7 +195,7 @@ function DynamoSection({ t }: { t: T }) {
 }
 
 function PubSubSection({ t }: { t: T }) {
-  const [project, setProject] = useState('nimbo-local')
+  const [project, setProject] = useState('floci-local')
   const pubsub = usePolled<PubSub>(() => inspect.pubsub(project))
   useEffect(() => pubsub.reload(), [project, pubsub.reload])
 

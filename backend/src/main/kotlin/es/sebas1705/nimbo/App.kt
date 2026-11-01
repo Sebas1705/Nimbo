@@ -46,6 +46,9 @@ fun Application.nimboModule(
     stacks: StackCatalog = StackCatalog.builtIn,
     inspector: Inspector = Inspector(JavaHttpGateway()),
     chaos: Chaos = Chaos(JavaHttpGateway()),
+    conformance: Conformance = Conformance(JavaHttpGateway()),
+    fidelity: FidelityStore = FidelityStore(),
+    labs: LabCatalog = LabCatalog(emptyList()),
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
@@ -84,6 +87,8 @@ fun Application.nimboModule(
             stackRoutes(config, runtime, stacks)
             inspectRoutes(inspector)
             chaosRoutes(chaos)
+            fidelityRoutes(conformance, fidelity)
+            labRoutes(labs, LabVerifier(inspector, chaos))
         }
 
         config.webDir?.let { dir ->

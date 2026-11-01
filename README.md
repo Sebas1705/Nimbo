@@ -15,9 +15,11 @@ Early (M0-M2). Working today:
 - Export for a stack: `.env` variables, an OpenTofu/Terraform `nimbo_override.tf` that points the AWS provider at the emulator, and an AWS CLI profile.
 - Read-only resource inspector: S3 buckets and object previews, SQS queues with message peek, DynamoDB tables and items (typed values flattened to plain JSON), and Pub/Sub topics and subscriptions. Auto-refreshes and tells you when an emulator is down.
 - Fault injection with [Toxiproxy](https://github.com/Shopify/toxiproxy): latency, slow link, hang, connection reset, slow close, cut after N bytes and full outage, per emulator and live. Stacks can be exported to use the chaos ports.
+- Fidelity matrix: 19 suites (12 AWS, 3 Azure, 3 GCP, plus Lambda) that run real operations against the emulators and report which services are fully, partly or not supported, step by step. Run it after upgrading an emulator.
+- Guided labs: 6 exercises (S3, SQS, DynamoDB, Pub/Sub fan-out, OpenTofu, a latency drill) in English and Spanish. You build with your own tools; Nimbo verifies the result in the emulators.
 - Optional API token and secrets read from [Doppler](https://www.doppler.com) (nothing sensitive is stored in the repo).
 
-Planned: a fidelity matrix and guided labs.
+Planned: Kubernetes (kind/k3d) and OpenTelemetry.
 
 ## Requirements
 
@@ -55,8 +57,19 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_WEB_DIR` | Directory with the built UI | `web/dist` |
 | `NIMBO_DOCKER_BIN` | Docker CLI to use | `docker` |
 | `NIMBO_STACKS_FILE` | Stacks file | `nimbo.yml`, then built-in stacks |
+| `NIMBO_LABS_DIR` | Directory with lab YAML files | `labs` |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
+
+## Fidelity
+
+The Fidelity tab runs small end-to-end scenarios (create, use, read back, delete) per service, so "the emulator has an SQS" becomes "SQS passes 6/6 steps, Lambda invoke fails because the Docker socket is not mounted". Each step is a real HTTP call; resources are named `nimbo-fit-<random>` and removed afterwards, even when a step fails. A step that depends on an earlier failure is reported as skipped instead of as a second failure. Status per service: **full**, **partial**, **unsupported** or **offline**.
+
+Firestore is not covered: Floci GCP serves it over gRPC only.
+
+## Labs
+
+Labs live in [`labs/`](labs) as one YAML file each (`title`, `summary`, `steps`, `hints`, `solution` and `checks`, every text in `en` and `es`). A check is one of `s3.bucket`, `s3.object`, `sqs.queue`, `sqs.messages`, `dynamodb.table`, `dynamodb.items`, `pubsub.topic`, `pubsub.subscription` or `chaos.fault`. Invalid labs are skipped and listed in the UI. Progress is stored in your browser only. Set `NIMBO_LABS_DIR` to use your own.
 
 ## Chaos
 

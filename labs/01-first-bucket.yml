@@ -1,0 +1,45 @@
+id: first-bucket
+level: 1
+stack: aws-basic
+title:
+  en: Your first bucket
+  es: Tu primer bucket
+summary:
+  en: Create an S3 bucket and upload an object, the "hello world" of object storage.
+  es: Crea un bucket de S3 y sube un objeto, el "hola mundo" del almacenamiento de objetos.
+steps:
+  - en: Start the Floci AWS provider (or the aws-basic stack) in the Infrastructure tab.
+    es: Inicia el proveedor Floci AWS (o el stack aws-basic) en la pestaña Infraestructura.
+  - en: Create a bucket named lab-first-bucket.
+    es: Crea un bucket llamado lab-first-bucket.
+  - en: Upload an object with the key hello.txt whose content is "hello nimbo".
+    es: Sube un objeto con la clave hello.txt cuyo contenido sea "hello nimbo".
+  - en: Press Verify. You can also look at it in the Inspector tab.
+    es: Pulsa Verificar. También puedes verlo en la pestaña Inspector.
+hints:
+  - en: Floci listens on http://localhost:4566 and accepts any credentials; the AWS CLI needs --endpoint-url.
+    es: Floci escucha en http://localhost:4566 y acepta cualquier credencial; el AWS CLI necesita --endpoint-url.
+  - en: Export the stack as AWS CLI and paste it in ~/.aws/config to get a profile called nimbo.
+    es: Exporta el stack como AWS CLI y pégalo en ~/.aws/config para tener un perfil llamado nimbo.
+solution:
+  - title:
+      en: AWS CLI
+      es: AWS CLI
+    code: |
+      export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
+      aws --endpoint-url http://localhost:4566 s3 mb s3://lab-first-bucket
+      echo "hello nimbo" > hello.txt
+      aws --endpoint-url http://localhost:4566 s3 cp hello.txt s3://lab-first-bucket/hello.txt
+checks:
+  - type: s3.bucket
+    name: lab-first-bucket
+    label:
+      en: Bucket lab-first-bucket exists
+      es: Existe el bucket lab-first-bucket
+  - type: s3.object
+    bucket: lab-first-bucket
+    key: hello.txt
+    contains: hello nimbo
+    label:
+      en: Object hello.txt contains "hello nimbo"
+      es: El objeto hello.txt contiene "hello nimbo"

@@ -40,7 +40,8 @@ fun interface HttpGateway {
 }
 
 class JavaHttpGateway : HttpGateway {
-    private val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build()
+    // HTTP/1.1 on purpose: it is what curl and most SDKs speak, so results match what your own code will see.
+    private val client = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build()
 
     override suspend fun send(method: String, url: String, headers: Map<String, String>, body: String?): HttpReply =
         withContext(Dispatchers.IO) {

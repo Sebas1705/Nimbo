@@ -24,7 +24,13 @@ object Catalog {
             description = "Azure emulator. MIT.",
             image = "floci/floci-az",
             ports = listOf(4577),
-            endpoints = mapOf("NIMBO_AZURE_ENDPOINT" to "http://localhost:4577"),
+            // One port, path-style routing. The account key is Azurite's documented development key; set it in your client.
+            endpoints = mapOf(
+                "NIMBO_AZURE_ENDPOINT" to "http://localhost:4577",
+                "AZURE_STORAGE_BLOB_ENDPOINT" to "http://localhost:4577/devstoreaccount1",
+                "AZURE_STORAGE_QUEUE_ENDPOINT" to "http://localhost:4577/devstoreaccount1-queue",
+                "AZURE_STORAGE_TABLE_ENDPOINT" to "http://localhost:4577/devstoreaccount1-table",
+            ),
         ),
         ProviderDef(
             id = "floci-gcp",
@@ -33,7 +39,13 @@ object Catalog {
             description = "Google Cloud emulator. MIT.",
             image = "floci/floci-gcp",
             ports = listOf(4588),
-            endpoints = mapOf("NIMBO_GCP_ENDPOINT" to "http://localhost:4588"),
+            endpoints = mapOf(
+                "NIMBO_GCP_ENDPOINT" to "http://localhost:4588",
+                "GOOGLE_CLOUD_PROJECT" to "floci-local",
+                "PUBSUB_EMULATOR_HOST" to "localhost:4588",
+                "STORAGE_EMULATOR_HOST" to "http://localhost:4588",
+                "SECRET_MANAGER_EMULATOR_HOST" to "localhost:4588",
+            ),
         ),
         ProviderDef(
             id = "floci-oci",

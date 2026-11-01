@@ -13,8 +13,20 @@ import {
   type StackList,
 } from './api'
 import { ChaosView } from './Chaos'
+import { FidelityView } from './Fidelity'
+import { LabsView } from './Labs'
 import { InspectorView } from './Inspector'
 import { detectLang, translate, type Key, type Lang } from './i18n'
+
+type View = 'infra' | 'inspector' | 'chaos' | 'fidelity' | 'labs'
+
+const VIEWS: Array<{ id: View; label: Key }> = [
+  { id: 'infra', label: 'viewInfra' },
+  { id: 'inspector', label: 'viewInspector' },
+  { id: 'chaos', label: 'viewChaos' },
+  { id: 'fidelity', label: 'viewFidelity' },
+  { id: 'labs', label: 'viewLabs' },
+]
 
 type Panel = { kind: 'logs' | 'env'; provider: Provider } | null
 
@@ -32,7 +44,7 @@ export function App() {
   const [stackBusy, setStackBusy] = useState<string | null>(null)
   const [stackErrors, setStackErrors] = useState<Record<string, string>>({})
   const [exporting, setExporting] = useState<Stack | null>(null)
-  const [view, setView] = useState<'infra' | 'inspector' | 'chaos'>('infra')
+  const [view, setView] = useState<View>('infra')
 
   const refresh = useCallback(async () => {
     try {
@@ -113,9 +125,9 @@ export function App() {
       </header>
 
       <nav className="views" role="tablist">
-        {(['infra', 'inspector', 'chaos'] as const).map((v) => (
-          <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'tab on' : 'tab'} onClick={() => setView(v)}>
-            {t(v === 'infra' ? 'viewInfra' : v === 'inspector' ? 'viewInspector' : 'viewChaos')}
+        {VIEWS.map((v) => (
+          <button key={v.id} role="tab" aria-selected={view === v.id} className={view === v.id ? 'tab on' : 'tab'} onClick={() => setView(v.id)}>
+            {t(v.label)}
           </button>
         ))}
       </nav>
@@ -128,6 +140,8 @@ export function App() {
 
       {view === 'inspector' && <InspectorView t={t} />}
       {view === 'chaos' && <ChaosView t={t} />}
+      {view === 'fidelity' && <FidelityView t={t} />}
+      {view === 'labs' && <LabsView t={t} lang={lang} />}
 
       <main hidden={view !== 'infra'}>
         {stackList.stacks.length > 0 && (

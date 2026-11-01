@@ -1,0 +1,156 @@
+import { useEffect, useState } from 'react'
+import { labProgress, labs, type Lab, type LabList, type LabVerify } from './api'
+import type { Key, Lang } from './i18n'
+
+type T = (k: Key) => string
+
+export function LabsView({ t, lang }: { t: T; lang: Lang }) {
+  const [list, setList] = useState<LabList | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [done, setDone] = useState<Set<string>>(() => labProgress.load())
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    labs
+      .list()
+      .then(setList)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
+
+  const markDone = (id: string) =>
+    setDone((prev) => {
+      const next = new Set(prev).add(id)
+      labProgress.save(next)
+      return next
+    })
+
+  if (!list) return <p className="muted">{error || '…'}</p>
+  const lab = list.labs.find((l) => l.id === selected) ?? null
+
+  return (
+    <div className="labs">
+      <div className="chaos-head">
+        <p className="muted">{t('labsIntro')}</p>
+        <span className="chip">
+          <b>{list.labs.filter((l) => done.has(l.id)).length}</b>&nbsp;/ {list.labs.length} {t('done').toLowerCase()}
+        </span>
+      </div>
+
+      {list.problems.length > 0 && (
+        <div className="banner" role="alert">
+          <b>{t('labsProblems')}</b>
+          <ul>
+            {list.problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="lab-layout">
+        <ul className="lab-list">
+          {list.labs.map((l) => (
+            <li key={l.id}>
+              <button className={l.id === selected ? 'lab-card on' : 'lab-card'} onClick={() => setSelected(l.id)}>
+                <span className="lab-level" aria-label={`${t('level')} ${l.level}`}>
+                  {'●'.repeat(l.level)}
+                  <span className="dim">{'●'.repeat(3 - l.level)}</span>
+                </span>
+                <span className="lab-title">{l.title[lang]}</span>
+                {done.has(l.id) && <span className="lab-done">✓</span>}
+                <small>{l.summary[lang]}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {lab && <LabDetail key={lab.id} lab={lab} t={t} lang={lang} completed={done.has(lab.id)} onPassed={() => markDone(lab.id)} />}
+      </div>
+    </div>
+  )
+}
+
+function LabDetail({ lab, t, lang, completed, onPassed }: { lab: Lab; t: T; lang: Lang; completed: boolean; onPassed: () => void }) {
+  const [result, setResult] = useState<LabVerify | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const verify = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const r = await labs.verify(lab.id)
+      setResult(r)
+      if (r.passed) onPassed()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <article className="lab-detail">
+      <h3>
+        {lab.title[lang]} {completed && <span className="lab-done">✓</span>}
+      </h3>
+      <p className="desc">{lab.summary[lang]}</p>
+      {lab.stack && (
+        <p className="hint">
+          {t('suggestedStack')}: <code>{lab.stack}</code>
+        </p>
+      )}
+
+      <h4>{t('labSteps')}</h4>
+      <ol className="lab-steps">
+        {lab.steps.map((s, i) => (
+          <li key={i}>{s[lang]}</li>
+        ))}
+      </ol>
+
+      {lab.hints.length > 0 && (
+        <details>
+          <summary>{t('labHints')}</summary>
+          <ul>
+            {lab.hints.map((h, i) => (
+              <li key={i}>{h[lang]}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {lab.solution.length > 0 && (
+        <details>
+          <summary>{t('labSolution')}</summary>
+          {lab.solution.map((s, i) => (
+            <div key={i}>
+              {s.title && <p className="hint">{s.title[lang]}</p>}
+              <pre className="mini">{s.code}</pre>
+            </div>
+          ))}
+        </details>
+      )}
+
+      <h4>{t('labChecks')}</h4>
+      <ul className="lab-checks">
+        {lab.checks.map((c, i) => {
+          const r = result?.results.find((x) => x.index === i)
+          return (
+            <li key={i} className={r ? (r.ok ? 'ok' : 'bad') : ''}>
+              <span className="mark">{r ? (r.ok ? '✓' : '✗') : '○'}</span>
+              <span>{c.label[lang]}</span>
+              {r && !r.ok && r.detail && <small>{r.detail}</small>}
+            </li>
+          )
+        })}
+      </ul>
+
+      {error && <p className="err">{error}</p>}
+      <div className="actions">
+        <button className="primary" disabled={busy} onClick={verify}>
+          {busy ? '…' : t('verify')}
+        </button>
+        {result && <span className={result.passed ? 'lab-ok' : 'muted'}>{result.passed ? t('labPassed') : t('labPending')}</span>}
+      </div>
+    </article>
+  )
+}

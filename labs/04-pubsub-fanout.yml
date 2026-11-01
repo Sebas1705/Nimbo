@@ -1,0 +1,50 @@
+id: pubsub-fanout
+level: 2
+stack: multicloud
+title:
+  en: Pub/Sub fan-out
+  es: Difusión con Pub/Sub
+summary:
+  en: 'One topic, two independent subscribers: the classic fan-out on Google Cloud.'
+  es: 'Un tema y dos suscriptores independientes: la difusión clásica en Google Cloud.'
+steps:
+  - en: Start Floci GCP (the multicloud stack includes it).
+    es: Inicia Floci GCP (el stack multicloud lo incluye).
+  - en: In project floci-local create the topic lab-events.
+    es: En el proyecto floci-local crea el tema lab-events.
+  - en: Create two subscriptions on it, lab-billing and lab-shipping.
+    es: Crea dos suscripciones sobre él, lab-billing y lab-shipping.
+  - en: Publish a message and pull it from both subscriptions; each one gets its own copy.
+    es: Publica un mensaje y tíralo desde ambas suscripciones; cada una recibe su propia copia.
+hints:
+  - en: The REST API is on http://localhost:4588/v1/projects/floci-local; message data must be base64.
+    es: La API REST está en http://localhost:4588/v1/projects/floci-local; los datos del mensaje van en base64.
+solution:
+  - title:
+      en: curl
+      es: curl
+    code: |
+      B=http://localhost:4588/v1/projects/floci-local
+      curl -X PUT $B/topics/lab-events
+      curl -X PUT $B/subscriptions/lab-billing  -H 'Content-Type: application/json' -d '{"topic":"projects/floci-local/topics/lab-events"}'
+      curl -X PUT $B/subscriptions/lab-shipping -H 'Content-Type: application/json' -d '{"topic":"projects/floci-local/topics/lab-events"}'
+      curl -X POST $B/topics/lab-events:publish -H 'Content-Type: application/json' -d '{"messages":[{"data":"aGVsbG8="}]}'
+      curl -X POST $B/subscriptions/lab-billing:pull -H 'Content-Type: application/json' -d '{"maxMessages":5}'
+checks:
+  - type: pubsub.topic
+    name: lab-events
+    label:
+      en: Topic lab-events exists
+      es: Existe el tema lab-events
+  - type: pubsub.subscription
+    name: lab-billing
+    topic: lab-events
+    label:
+      en: Subscription lab-billing listens to lab-events
+      es: La suscripción lab-billing escucha a lab-events
+  - type: pubsub.subscription
+    name: lab-shipping
+    topic: lab-events
+    label:
+      en: Subscription lab-shipping listens to lab-events
+      es: La suscripción lab-shipping escucha a lab-events
