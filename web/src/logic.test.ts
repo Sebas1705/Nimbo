@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chaosState, countRunning, coverage, failures, formatBytes, groupByCloud, labProgress, type ChaosTarget, type FitSuite, type Provider } from './api'
+import { barStyle, chaosState, countRunning, coverage, failures, formatBytes, formatMicros, groupByCloud, labProgress, podTone, type ChaosTarget, type FitSuite, type Provider } from './api'
 import { detectLang, translate } from './i18n'
 
 const p = (id: string, cloud: Provider['cloud'], state: Provider['state']): Provider => ({
@@ -108,5 +108,42 @@ describe('labProgress', () => {
     expect(labProgress.load().size).toBe(0)
     store.set('nimbo.labs.done', JSON.stringify(['ok', 42, null, { a: 1 }]))
     expect([...labProgress.load()]).toEqual(['ok'])
+  })
+})
+
+describe('formatMicros', () => {
+  it('picks the unit by magnitude', () => {
+    expect(formatMicros(45)).toBe('45 µs')
+    expect(formatMicros(120_000)).toBe('120 ms')
+    expect(formatMicros(999_999)).toBe('1000 ms')
+    expect(formatMicros(1_500_000)).toBe('1.50 s')
+  })
+})
+
+describe('podTone', () => {
+  it('separates fine, transitional and broken pods', () => {
+    expect(podTone('Running')).toBe('ok')
+    expect(podTone('Completed')).toBe('ok')
+    expect(podTone('ContainerCreating')).toBe('warn')
+    expect(podTone('Terminating')).toBe('warn')
+    expect(podTone('CrashLoopBackOff')).toBe('bad')
+    expect(podTone('ImagePullBackOff')).toBe('bad')
+    expect(podTone('Whatever')).toBe('bad')
+  })
+})
+
+describe('barStyle', () => {
+  it('maps offset and duration to percentages inside the track', () => {
+    expect(barStyle({ offsetMicros: 0, durationMicros: 120_000 }, 120_000)).toEqual({ left: 0, width: 100 })
+    const mid = barStyle({ offsetMicros: 60_000, durationMicros: 30_000 }, 120_000)
+    expect(mid.left).toBe(50)
+    expect(mid.width).toBe(25)
+  })
+  it('never overflows, keeps tiny spans visible and survives a zero total', () => {
+    expect(barStyle({ offsetMicros: 100, durationMicros: 1 }, 1_000_000).width).toBe(0.8)
+    const over = barStyle({ offsetMicros: 90_000, durationMicros: 90_000 }, 100_000)
+    expect(over.left + over.width).toBeLessThanOrEqual(100)
+    expect(barStyle({ offsetMicros: 5, durationMicros: 5 }, 0)).toEqual({ left: 0, width: 100 })
+    expect(barStyle({ offsetMicros: -5, durationMicros: 10 }, 100).left).toBe(0)
   })
 })

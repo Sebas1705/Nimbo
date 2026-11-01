@@ -317,3 +317,56 @@ class LabApiTest {
         assertEquals(HttpStatusCode.NotFound, client.post("/api/labs/..%2Fx/verify").status)
     }
 }
+
+class LabClusterChecksTest {
+    private fun verify(kube: Kube?, traces: Traces?, vararg checks: String): LabVerifyDto = runBlocking {
+        val (def, problem) = parse(lab(*checks))
+        assertNull(problem)
+        LabVerifier(Inspector(World()), Chaos(FakeToxiproxy()), kube, traces).verify(def!!)
+    }
+
+    private val up = Kube(healthy())
+
+    @Test
+    fun `deployment readiness is compared with what the lab asks for`() {
+        assertTrue(verify(up, null, "{type: k8s.deployment, name: hello, atLeast: 2, label: L}").passed)
+        assertTrue(verify(up, null, "{type: k8s.deployment, name: hello, label: L}").passed, "atLeast defaults to 1")
+        assertContains(verify(up, null, "{type: k8s.deployment, name: hello, atLeast: 3, label: L}").results.single().detail!!, "2 of 3 replicas ready, need 3")
+        assertContains(verify(up, null, "{type: k8s.deployment, name: ghost, label: L}").results.single().detail!!, "no deployment ghost in namespace default")
+        assertContains(verify(up, null, "{type: k8s.deployment, name: hello, namespace: staging, label: L}").results.single().detail!!, "namespace staging")
+    }
+
+    @Test
+    fun `service existence and type`() {
+        assertTrue(verify(up, null, "{type: k8s.service, name: hello, serviceType: NodePort, label: L}").passed)
+        assertTrue(verify(up, null, "{type: k8s.service, name: hello, label: L}").passed)
+        assertContains(verify(up, null, "{type: k8s.service, name: kubernetes, serviceType: NodePort, label: L}").results.single().detail!!, "ClusterIP, not NodePort")
+        assertContains(verify(up, null, "{type: k8s.service, name: nope, label: L}").results.single().detail!!, "no service nope")
+    }
+
+    @Test
+    fun `a stopped cluster fails with the reason, an unconfigured one says so`() {
+        val stopped = Kube(ScriptedShell { _, _ -> ExecResult(1, "No such container: nimbo-k3s") })
+        assertContains(verify(stopped, null, "{type: k8s.deployment, name: hello, label: L}").results.single().detail!!, "not running")
+        assertEquals("Kubernetes is not available", verify(null, null, "{type: k8s.service, name: hello, label: L}").results.single().detail)
+        assertEquals("Tracing is not available", verify(null, null, "{type: trace.service, name: s, label: L}").results.single().detail)
+    }
+
+    @Test
+    fun `a service shows up once it has sent traces`() {
+        val jaeger = FakeJaeger { _, _ -> HttpReply(200, """{"data":["lab-orders-api","other"]}""") }
+        assertTrue(verify(null, Traces(jaeger), "{type: trace.service, name: lab-orders-api, label: L}").passed)
+        val detail = verify(null, Traces(jaeger), "{type: trace.service, name: missing, label: L}").results.single().detail!!
+        assertContains(detail, "no traces from that service yet")
+        assertContains(detail, "lab-orders-api")
+        val down = FakeJaeger().apply { unreachable = true }
+        assertContains(verify(null, Traces(down), "{type: trace.service, name: x, label: L}").results.single().detail!!, "not reachable")
+    }
+
+    @Test
+    fun `the new check types validate their parameters`() {
+        assertContains(parse(lab("{type: k8s.deployment, label: L}")).second.orEmpty(), "missing 'name'")
+        assertContains(parse(lab("{type: k8s.service, name: a, namespace: 'x y', label: L}")).second.orEmpty(), "invalid value")
+        assertContains(parse(lab("{type: trace.service, name: '../x', label: L}")).second.orEmpty(), "invalid value")
+    }
+}

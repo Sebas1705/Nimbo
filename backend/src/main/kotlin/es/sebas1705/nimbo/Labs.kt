@@ -53,8 +53,11 @@ class LabCatalog(val labs: List<LabDef>, val problems: List<String> = emptyList(
             "pubsub.topic" to listOf("name"),
             "pubsub.subscription" to listOf("name"),
             "chaos.fault" to listOf("target", "preset"),
+            "k8s.deployment" to listOf("name"),
+            "k8s.service" to listOf("name"),
+            "trace.service" to listOf("name"),
         )
-        private val NAMED = setOf("name", "bucket", "queue", "table", "topic", "project", "target", "preset", "attribute")
+        private val NAMED = setOf("name", "bucket", "queue", "table", "topic", "project", "target", "preset", "attribute", "namespace", "serviceType")
 
         fun parseOne(text: String, source: String): Pair<LabDef?, String?> {
             val root = try {
@@ -125,7 +128,12 @@ class LabCatalog(val labs: List<LabDef>, val problems: List<String> = emptyList(
 }
 
 /** Evaluates a lab's checks against the live emulators, using the same read-only views as the inspector. */
-class LabVerifier(private val inspector: Inspector, private val chaos: Chaos) {
+class LabVerifier(
+    private val inspector: Inspector,
+    private val chaos: Chaos,
+    private val kube: Kube? = null,
+    private val traces: Traces? = null,
+) {
 
     suspend fun verify(lab: LabDef): LabVerifyDto {
         val results = lab.checks.mapIndexed { i, spec ->
@@ -199,6 +207,25 @@ class LabVerifier(private val inspector: Inspector, private val chaos: Chaos) {
                     if (value < min) return "$attr is ${value.toLong()}, need at least ${min.toLong()}"
                 }
                 null
+            }
+            "k8s.deployment" -> {
+                val cluster = kube?.overview() ?: return "Kubernetes is not available"
+                if (!cluster.available) return cluster.reason ?: "the cluster is not running"
+                val ns = c.str("namespace") ?: "default"
+                val d = cluster.deployments.firstOrNull { it.namespace == ns && it.name == c.str("name") } ?: return "no deployment ${c.str("name")} in namespace $ns"
+                val atLeast = c.int("atLeast", 1)
+                if (d.ready >= atLeast) null else "${d.ready} of ${d.desired} replicas ready, need $atLeast"
+            }
+            "k8s.service" -> {
+                val cluster = kube?.overview() ?: return "Kubernetes is not available"
+                if (!cluster.available) return cluster.reason ?: "the cluster is not running"
+                val ns = c.str("namespace") ?: "default"
+                val s = cluster.services.firstOrNull { it.namespace == ns && it.name == c.str("name") } ?: return "no service ${c.str("name")} in namespace $ns"
+                c.str("serviceType")?.let { if (s.type == it) null else "the service is ${s.type}, not $it" }
+            }
+            "trace.service" -> {
+                val names = (traces ?: return "Tracing is not available").services()
+                if (c.str("name") in names) null else "no traces from that service yet; found: ${names.take(5).ifEmpty { listOf("none") }.joinToString()}"
             }
             else -> "unsupported check type"
         }

@@ -96,6 +96,26 @@ export interface Lab {
 export interface LabList { labs: Lab[]; problems: string[] }
 export interface LabVerify { id: string; passed: boolean; results: Array<{ index: number; ok: boolean; detail?: string | null }> }
 
+export interface KubeNode { name: string; ready: boolean; version?: string | null; cpu?: string | null; memory?: string | null }
+export interface KubePod { namespace: string; name: string; status: string; ready: string; restarts: number; node?: string | null; startedAt?: string | null }
+export interface KubeDeployment { namespace: string; name: string; ready: number; desired: number }
+export interface KubeService { namespace: string; name: string; type: string; clusterIp?: string | null; ports: string[]; nodePorts: number[] }
+export interface KubeOverview {
+  available: boolean
+  reason?: string | null
+  version?: string | null
+  namespaces: string[]
+  nodes: KubeNode[]
+  deployments: KubeDeployment[]
+  pods: KubePod[]
+  services: KubeService[]
+}
+export interface KubeSample { id: string; title: string; description: string; manifest: string }
+
+export interface TraceSummary { traceId: string; service: string; operation: string; startedAt: number; durationMicros: number; spans: number; errors: number }
+export interface Span { id: string; parentId?: string | null; service: string; operation: string; depth: number; offsetMicros: number; durationMicros: number; error: boolean }
+export interface TraceDetail { traceId: string; startedAt: number; durationMicros: number; spans: Span[] }
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
@@ -179,6 +199,49 @@ export const chaos = {
   removeToxic: (id: string, name: string) =>
     request<ChaosTarget>(`/api/chaos/targets/${seg(id)}/toxics/${seg(name)}`, { method: 'DELETE' }),
   reset: () => request<ChaosView>('/api/chaos/reset', { method: 'POST' }),
+}
+
+const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+const k8s = '/api/k8s'
+
+export const kube = {
+  overview: () => request<KubeOverview>(k8s),
+  samples: () => request<KubeSample[]>(`${k8s}/samples`),
+  apply: (manifest: string) => request<{ output: string }>(`${k8s}/apply`, json({ manifest })),
+  scale: (ns: string, name: string, replicas: number) => request<{ output: string }>(`${k8s}/namespaces/${seg(ns)}/deployments/${seg(name)}/scale`, json({ replicas })),
+  remove: (kind: 'pod' | 'deployment' | 'service', ns: string, name: string) =>
+    request<{ output: string }>(`${k8s}/namespaces/${seg(ns)}/${kind}/${seg(name)}`, { method: 'DELETE' }),
+  logs: (ns: string, pod: string) => request<{ output: string }>(`${k8s}/namespaces/${seg(ns)}/pods/${seg(pod)}/logs?tail=300`),
+  kubeconfig: () => request<{ filename: string; content: string }>(`${k8s}/kubeconfig`),
+}
+
+export const traces = {
+  services: () => request<string[]>('/api/traces/services'),
+  list: (service: string) => request<TraceSummary[]>(`/api/traces?service=${seg(service)}&limit=30`),
+  detail: (id: string) => request<TraceDetail>(`/api/traces/${seg(id)}`),
+  sample: (error = false) => request<{ traceId: string; service: string }>(`/api/traces/sample${error ? '?error=true' : ''}`, { method: 'POST' }),
+}
+
+/** 45 µs, 120 ms, 1.50 s. */
+export function formatMicros(us: number): string {
+  if (us < 1_000) return `${us} µs`
+  if (us < 1_000_000) return `${Math.round(us / 1_000)} ms`
+  return `${(us / 1_000_000).toFixed(2)} s`
+}
+
+/** How worrying a pod status is, for colouring: Running is fine, waiting states are transitional, the rest is bad. */
+export function podTone(status: string): 'ok' | 'warn' | 'bad' {
+  if (['Running', 'Succeeded', 'Completed'].includes(status)) return 'ok'
+  if (['Pending', 'ContainerCreating', 'PodInitializing', 'Terminating', 'Init:0/1'].includes(status)) return 'warn'
+  return 'bad'
+}
+
+/** Position and width of a span in a waterfall, as percentages that never leave the 0..100 box. */
+export function barStyle(span: Pick<Span, 'offsetMicros' | 'durationMicros'>, total: number): { left: number; width: number } {
+  if (total <= 0) return { left: 0, width: 100 }
+  const left = Math.min(100, Math.max(0, (span.offsetMicros / total) * 100))
+  const width = Math.min(100 - left, Math.max(0.8, (span.durationMicros / total) * 100))
+  return { left, width }
 }
 
 export const fidelity = {

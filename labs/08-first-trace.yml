@@ -1,0 +1,38 @@
+id: first-trace
+level: 2
+stack: cluster
+title:
+  en: Your first trace
+  es: Tu primera traza
+summary:
+  en: Send a distributed trace to Jaeger over OTLP and read it as a waterfall.
+  es: Envía una traza distribuida a Jaeger por OTLP y léela como una cascada.
+steps:
+  - en: Start Jaeger (the cluster stack includes it).
+    es: Inicia Jaeger (el stack cluster lo incluye).
+  - en: 'Send a trace whose service.name is lab-orders-api, with a root span and at least one child span. OTLP over HTTP listens on http://localhost:4318/v1/traces.'
+    es: 'Envía una traza cuyo service.name sea lab-orders-api, con un span raíz y al menos un hijo. OTLP por HTTP escucha en http://localhost:4318/v1/traces.'
+  - en: Open the Traces tab, pick your service and look at the waterfall. Which span is the slowest?
+    es: Abre la pestaña Trazas, elige tu servicio y mira la cascada. ¿Qué span es el más lento?
+  - en: Verify. Then instrument a real program with an OpenTelemetry SDK and send its traces to the same endpoint.
+    es: Verifica. Después instrumenta un programa real con un SDK de OpenTelemetry y envía sus trazas al mismo endpoint.
+hints:
+  - en: Spans of the same trace share a traceId (32 hex characters); a child points to its parent with parentSpanId (16 hex characters).
+    es: Los spans de una misma traza comparten traceId (32 caracteres hexadecimales); un hijo apunta a su padre con parentSpanId (16 caracteres hexadecimales).
+  - en: The Send sample button in the Traces tab sends a ready-made trace, useful to see the shape of the data.
+    es: El botón Enviar ejemplo de la pestaña Trazas envía una traza ya hecha, útil para ver la forma de los datos.
+solution:
+  - title:
+      en: curl (bash)
+      es: curl (bash)
+    code: |
+      NOW=$(date +%s%N)
+      curl -X POST http://localhost:4318/v1/traces -H 'Content-Type: application/json' -d '{"resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"lab-orders-api"}}]},"scopeSpans":[{"spans":[
+        {"traceId":"0123456789abcdef0123456789abcdef","spanId":"0123456789abcdef","name":"POST /orders","kind":2,"startTimeUnixNano":"'$NOW'","endTimeUnixNano":"'$((NOW+90000000))'"},
+        {"traceId":"0123456789abcdef0123456789abcdef","spanId":"fedcba9876543210","parentSpanId":"0123456789abcdef","name":"db.insert","kind":3,"startTimeUnixNano":"'$((NOW+10000000))'","endTimeUnixNano":"'$((NOW+70000000))'"}]}]}]}'
+checks:
+  - type: trace.service
+    name: lab-orders-api
+    label:
+      en: Jaeger has traces from the service lab-orders-api
+      es: Jaeger tiene trazas del servicio lab-orders-api

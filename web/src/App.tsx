@@ -14,16 +14,20 @@ import {
 } from './api'
 import { ChaosView } from './Chaos'
 import { FidelityView } from './Fidelity'
+import { KubeView } from './Kube'
 import { LabsView } from './Labs'
+import { TracesView } from './Traces'
 import { InspectorView } from './Inspector'
 import { detectLang, translate, type Key, type Lang } from './i18n'
 
-type View = 'infra' | 'inspector' | 'chaos' | 'fidelity' | 'labs'
+type View = 'infra' | 'inspector' | 'chaos' | 'kube' | 'traces' | 'fidelity' | 'labs'
 
 const VIEWS: Array<{ id: View; label: Key }> = [
   { id: 'infra', label: 'viewInfra' },
   { id: 'inspector', label: 'viewInspector' },
   { id: 'chaos', label: 'viewChaos' },
+  { id: 'kube', label: 'viewKube' },
+  { id: 'traces', label: 'viewTraces' },
   { id: 'fidelity', label: 'viewFidelity' },
   { id: 'labs', label: 'viewLabs' },
 ]
@@ -140,6 +144,8 @@ export function App() {
 
       {view === 'inspector' && <InspectorView t={t} />}
       {view === 'chaos' && <ChaosView t={t} />}
+      {view === 'kube' && <KubeView t={t} />}
+      {view === 'traces' && <TracesView t={t} />}
       {view === 'fidelity' && <FidelityView t={t} />}
       {view === 'labs' && <LabsView t={t} lang={lang} />}
 

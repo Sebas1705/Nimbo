@@ -1,0 +1,67 @@
+id: first-cluster
+level: 2
+stack: cluster
+title:
+  en: Your first cluster
+  es: Tu primer clúster
+summary:
+  en: Run a Deployment and a NodePort Service on a real Kubernetes cluster, then reach it from your browser.
+  es: Ejecuta un Deployment y un Service NodePort en un clúster Kubernetes real y llega a él desde tu navegador.
+steps:
+  - en: Start Kubernetes (k3s) in the Infrastructure tab and wait until the Kubernetes tab shows the node as ready.
+    es: Inicia Kubernetes (k3s) en la pestaña Infraestructura y espera a que la pestaña Kubernetes muestre el nodo listo.
+  - en: Create a Deployment named lab-web with 2 replicas of nginx:alpine (use the Apply box or kubectl).
+    es: Crea un Deployment llamado lab-web con 2 réplicas de nginx:alpine (usa la caja Aplicar o kubectl).
+  - en: Expose it with a NodePort Service also named lab-web on nodePort 30081.
+    es: Expónlo con un Service NodePort también llamado lab-web en el nodePort 30081.
+  - en: Open http://localhost:30081, then verify. Afterwards delete one pod and watch Kubernetes replace it.
+    es: Abre http://localhost:30081 y verifica. Después borra un pod y observa cómo Kubernetes lo reemplaza.
+hints:
+  - en: The k3s provider publishes ports 30080 to 30084 on localhost, so a NodePort in that range works from your machine.
+    es: El proveedor k3s publica los puertos 30080 a 30084 en localhost, así que un NodePort de ese rango funciona desde tu máquina.
+  - en: The selector of the Service must match the labels of the pods, otherwise it has no endpoints.
+    es: El selector del Service debe coincidir con las etiquetas de los pods; si no, no tiene endpoints.
+solution:
+  - title:
+      en: Manifest (paste it in the Apply box)
+      es: Manifiesto (pégalo en la caja Aplicar)
+    code: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: lab-web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels: {app: lab-web}
+        template:
+          metadata:
+            labels: {app: lab-web}
+          spec:
+            containers:
+              - name: web
+                image: nginx:alpine
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: lab-web
+      spec:
+        type: NodePort
+        selector: {app: lab-web}
+        ports:
+          - port: 80
+            nodePort: 30081
+checks:
+  - type: k8s.deployment
+    name: lab-web
+    atLeast: 2
+    label:
+      en: Deployment lab-web has 2 ready replicas
+      es: El Deployment lab-web tiene 2 réplicas listas
+  - type: k8s.service
+    name: lab-web
+    serviceType: NodePort
+    label:
+      en: Service lab-web is of type NodePort
+      es: El Service lab-web es de tipo NodePort

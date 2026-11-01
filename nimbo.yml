@@ -16,3 +16,7 @@ stacks:
   storage-lab:
     description: Blob and object storage on two clouds
     providers: [azurite, minio]
+
+  cluster:
+    description: Kubernetes (k3s) plus Jaeger tracing
+    providers: [k3s, jaeger]

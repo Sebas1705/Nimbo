@@ -9,6 +9,7 @@ import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.request.host
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -26,6 +27,8 @@ data class NimboConfig(
     val apiToken: String? = null,
     val webDir: File? = null,
     val hostEnv: Map<String, String> = emptyMap(),
+    /** Extra Host header values accepted besides loopback (e.g. behind a reverse proxy you control). */
+    val allowedHosts: Set<String> = emptySet(),
 ) {
     companion object {
         fun fromEnv(env: Map<String, String> = System.getenv()): NimboConfig = NimboConfig(
@@ -36,9 +39,12 @@ data class NimboConfig(
                 .map(::File)
                 .firstOrNull { it.isDirectory },
             hostEnv = env,
+            allowedHosts = env["NIMBO_ALLOWED_HOSTS"].orEmpty().split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet(),
         )
     }
 }
+
+private val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1")
 
 fun Application.nimboModule(
     config: NimboConfig,
@@ -49,9 +55,21 @@ fun Application.nimboModule(
     conformance: Conformance = Conformance(JavaHttpGateway()),
     fidelity: FidelityStore = FidelityStore(),
     labs: LabCatalog = LabCatalog(emptyList()),
+    kube: Kube = Kube(ProcessShell()),
+    traces: Traces = Traces(JavaHttpGateway()),
 ) {
     install(ContentNegotiation) { json() }
+    // Anti DNS-rebinding: a web page cannot make the browser talk to us under its own hostname.
+    intercept(ApplicationCallPipeline.Plugins) {
+        // request.host() reads the Host header and falls back to the local address when a client omits it.
+        val host = call.request.host().lowercase()
+        if (host !in LOOPBACK_HOSTS && host !in config.allowedHosts) {
+            call.respond(HttpStatusCode.Forbidden, ErrorDto("Host not allowed"))
+            finish()
+        }
+    }
     install(StatusPages) {
+        exception<KubeError> { call, cause -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorDto(cause.message ?: "kubectl failed")) }
         exception<InvalidParam> { call, cause -> call.respond(HttpStatusCode.BadRequest, ErrorDto(cause.message ?: "Invalid parameter")) }
         exception<UnknownTarget> { call, cause -> call.respond(HttpStatusCode.NotFound, ErrorDto(cause.message ?: "Unknown target")) }
         exception<InvalidName> { call, cause -> call.respond(HttpStatusCode.BadRequest, ErrorDto(cause.message ?: "Invalid name")) }
@@ -88,7 +106,9 @@ fun Application.nimboModule(
             inspectRoutes(inspector)
             chaosRoutes(chaos)
             fidelityRoutes(conformance, fidelity)
-            labRoutes(labs, LabVerifier(inspector, chaos))
+            labRoutes(labs, LabVerifier(inspector, chaos, kube, traces))
+            kubeRoutes(kube)
+            traceRoutes(traces)
         }
 
         config.webDir?.let { dir ->
