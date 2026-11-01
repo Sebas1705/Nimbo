@@ -3,7 +3,7 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
-## [Unreleased]
+## [0.2.1]
 
 ### Added
 - **A built-in guide.** A start page with the five steps and five one-click recipes, a usage guide for every provider (where it listens, commands to paste, limits) and a "How it works" note on every screen, in English and Spanish. The commands were run against the real emulators, and a test keeps the guides in step with the catalog, the labs and the stacks.

@@ -6,7 +6,7 @@ plugins {
 
 group = "es.sebas1705"
 // The release workflow passes the tag (v0.1.0 -> 0.1.0); local builds use the default below.
-version = (findProperty("nimboVersion") as String?) ?: "0.2.0"
+version = (findProperty("nimboVersion") as String?) ?: "0.2.1"
 
 repositories {
     mavenCentral()
