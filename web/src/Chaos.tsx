@@ -53,7 +53,6 @@ export function ChaosView({ t }: { t: T }) {
   return (
     <div className="chaos">
       <div className="chaos-head">
-        <p className="muted">{t('chaosIntro')}</p>
         {view.available && (
           <button className="ghost" onClick={resetAll}>
             {t('resetAll')}

@@ -57,7 +57,6 @@ export function KubeView({ t }: { t: T }) {
   if (!data.available) {
     return (
       <div className="kube">
-        <p className="muted">{t('kubeIntro')}</p>
         <div className="banner" role="alert">
           {starting ? t('kubeStarting') : (data.reason ?? '')}{' '}
           <button className="primary" disabled={starting} onClick={start}>
@@ -78,7 +77,6 @@ export function KubeView({ t }: { t: T }) {
   return (
     <div className="kube">
       <div className="chaos-head">
-        <p className="muted">{t('kubeIntro')}</p>
         <div className="top-right">
           <span className="chip" data-ok={nodesReady > 0}>
             <i className="dot" />
@@ -102,6 +100,7 @@ export function KubeView({ t }: { t: T }) {
 
       <section className="cloud cloud-other kube-block">
         <h2>{t('deployments')}</h2>
+        {deployments.length === 0 && <p className="empty">{t('kubeEmptyDeploy')}</p>}
         <ul className="kube-list">
           {deployments.map((d) => (
             <li key={`${d.namespace}/${d.name}`} className="kube-row">
@@ -132,6 +131,7 @@ export function KubeView({ t }: { t: T }) {
 
       <section className="cloud cloud-other kube-block">
         <h2>{t('pods')}</h2>
+        {pods.length === 0 && <p className="empty">{t('kubeEmptyPods')}</p>}
         <ul className="kube-list">
           {pods.map((p) => (
             <li key={`${p.namespace}/${p.name}`} className="kube-row">

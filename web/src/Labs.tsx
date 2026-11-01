@@ -4,9 +4,10 @@ import type { Key, Lang } from './i18n'
 
 type T = (k: Key) => string
 
-export function LabsView({ t, lang }: { t: T; lang: Lang }) {
+/** `focus` opens a lab straight away, for the links on the guide page. */
+export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: string | null }) {
   const [list, setList] = useState<LabList | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(focus)
   const [done, setDone] = useState<Set<string>>(() => labProgress.load())
   const [error, setError] = useState('')
 
@@ -30,7 +31,6 @@ export function LabsView({ t, lang }: { t: T; lang: Lang }) {
   return (
     <div className="labs">
       <div className="chaos-head">
-        <p className="muted">{t('labsIntro')}</p>
         <span className="chip">
           <b>{list.labs.filter((l) => done.has(l.id)).length}</b>&nbsp;/ {list.labs.length} {t('done').toLowerCase()}
         </span>

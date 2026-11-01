@@ -50,6 +50,20 @@ tasks.withType<Jar>().configureEach {
 
 tasks.test {
     useJUnitPlatform()
+    // Several tests check files outside this module (guides, labs, stacks, workflows, compose, changelog...).
+    // Without declaring them Gradle would call a cached result up to date after one of them changed.
+    inputs.files(
+        rootProject.file("web/src/guides.ts"),
+        rootProject.file("nimbo.yml"),
+        rootProject.file("README.md"),
+        rootProject.file("CHANGELOG.md"),
+        rootProject.file("docker-compose.yml"),
+        rootProject.file(".env.example"),
+        rootProject.file(".gitignore"),
+    ).withPropertyName("repoFiles")
+    inputs.dir(rootProject.file("labs")).withPropertyName("labs")
+    inputs.dir(rootProject.file(".github/workflows")).withPropertyName("workflows")
+    inputs.dir(rootProject.file("packaging")).withPropertyName("packaging")
 }
 
 // ---- Packaging: the jar carries the UI, the labs and the default stacks, so it runs from any folder ----

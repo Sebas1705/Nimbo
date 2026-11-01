@@ -8,6 +8,8 @@ It does not emulate any cloud by itself. It orchestrates existing emulators ([Fl
 
 Version 0.1.0 (see the [changelog](CHANGELOG.md)); while it is 0.x, anything may still change. Working today:
 
+- **A built-in guide.** A start page with the five steps and one-click recipes (AWS, the three clouds, events and queues, Kubernetes and traces, break things on purpose); a guide for every provider with where it listens, commands to paste and the traps to avoid; and a short "How it works" note on every screen. All in English and Spanish. A test keeps the guides in step with the real catalog (ports, labs, stacks, which providers need secrets).
+- **A calmer interface.** Light and dark themes (it follows your system and you can pin one), navigation grouped by what you are doing (Start, Build, Observe, Break, Learn), and every provider shown with its port on the front plate. The fonts are bundled, so it looks the same offline.
 - Catalog of 12 providers, grouped by cloud, started and stopped with one click.
 - Live state of every container, logs panel and copy-ready client environment variables.
 - Docker-down detection, English and Spanish UI, light and dark theme.

@@ -47,7 +47,6 @@ export function FidelityView({ t }: { t: T }) {
   return (
     <div className="fidelity">
       <div className="chaos-head">
-        <p className="muted">{t('fidelityIntro')}</p>
         <div className="actions">
           <button className="primary" disabled={busy !== null} onClick={() => run()}>
             {busy === 'all' ? '…' : t('runAllChecks')}

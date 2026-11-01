@@ -3,6 +3,20 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [Unreleased]
+
+### Added
+- **A built-in guide.** A start page with the five steps and five one-click recipes, a usage guide for every provider (where it listens, commands to paste, limits) and a "How it works" note on every screen, in English and Spanish. The commands were run against the real emulators, and a test keeps the guides in step with the catalog, the labs and the stacks.
+- A light/dark theme switch (it follows the system by default) and a remembered language.
+
+### Changed
+- **New look.** Navigation is a side rail grouped by what you are doing (Start, Build, Observe, Break, Learn), providers show their port on a front plate with a status LED, section titles and empty states say what to do next, and the fonts are bundled so it works offline. The layout adapts to phone width.
+- Provider and stack descriptions follow the language of the interface.
+- The `curl` commands in the guides are silent (`-sS`) so their answers are readable.
+
+### Fixed
+- The tests that read files outside the backend module (guides, labs, stacks, workflows, compose, changelog) were declared as inputs, so Gradle can no longer report a stale passing result after one of them changes.
+
 ## [0.2.0]
 
 ### Added

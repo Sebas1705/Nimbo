@@ -91,7 +91,6 @@ export function TracesView({ t }: { t: T }) {
   return (
     <div className="traces">
       <div className="chaos-head">
-        <p className="muted">{t('tracesIntro')}</p>
         <div className="actions">
           <label className="field">
             {t('traceService')}
