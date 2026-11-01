@@ -13,6 +13,8 @@ data class ProviderDef(
     val image: String,
     val ports: List<Int>,
     val command: List<String> = emptyList(),
+    /** Extra `docker run` flags placed before the image (e.g. --add-host). */
+    val runArgs: List<String> = emptyList(),
     /** Container env with fixed, non-secret values. */
     val containerEnv: Map<String, String> = emptyMap(),
     /** Container env whose value is read from Nimbo's own environment (fed by Doppler): container var -> host var. */

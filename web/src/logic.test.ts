@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countRunning, failures, formatBytes, groupByCloud, type Provider } from './api'
+import { chaosState, countRunning, failures, formatBytes, groupByCloud, type ChaosTarget, type Provider } from './api'
 import { detectLang, translate } from './i18n'
 
 const p = (id: string, cloud: Provider['cloud'], state: Provider['state']): Provider => ({
@@ -59,5 +59,17 @@ describe('formatBytes', () => {
     expect(formatBytes(1023)).toBe('1023 B')
     expect(formatBytes(1536)).toBe('1.5 KB')
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB')
+  })
+})
+
+describe('chaosState', () => {
+  const base: ChaosTarget = { id: 'x', name: 'x', upstreamPort: 1, proxyPort: 2, endpoint: '', active: true, enabled: true, toxics: [] }
+  it('ranks outage over faults over healthy', () => {
+    expect(chaosState(base)).toBe('healthy')
+    expect(chaosState({ ...base, toxics: [{ name: 'latency', type: 'latency', toxicity: 1, attributes: {} }] })).toBe('faults')
+    expect(chaosState({ ...base, enabled: false, toxics: [{ name: 'latency', type: 'latency', toxicity: 1, attributes: {} }] })).toBe('outage')
+  })
+  it('a never-proxied target is healthy even though its flag defaults to enabled', () => {
+    expect(chaosState({ ...base, active: false, enabled: false })).toBe('healthy')
   })
 })

@@ -96,6 +96,17 @@ object Catalog {
             endpoints = mapOf("DATABASE_HOST" to "localhost", "DATABASE_PORT" to "5432"),
         ),
         ProviderDef(
+            id = "toxiproxy",
+            name = "Toxiproxy",
+            cloud = Cloud.OTHER,
+            description = "Chaos proxy: latency, outages and resets in front of the emulators (see the Chaos tab).",
+            image = "ghcr.io/shopify/toxiproxy",
+            ports = listOf(ChaosTargets.API_PORT) + ChaosTargets.all.map { it.proxyPort },
+            // Lets the proxy reach emulators published on the host; Docker Desktop resolves it already, Linux needs the flag.
+            runArgs = listOf("--add-host=host.docker.internal:host-gateway"),
+            endpoints = mapOf("TOXIPROXY_URL" to "http://localhost:${ChaosTargets.API_PORT}"),
+        ),
+        ProviderDef(
             id = "redis",
             name = "Redis",
             cloud = Cloud.OTHER,

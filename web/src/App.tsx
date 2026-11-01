@@ -12,6 +12,7 @@ import {
   type Stack,
   type StackList,
 } from './api'
+import { ChaosView } from './Chaos'
 import { InspectorView } from './Inspector'
 import { detectLang, translate, type Key, type Lang } from './i18n'
 
@@ -31,7 +32,7 @@ export function App() {
   const [stackBusy, setStackBusy] = useState<string | null>(null)
   const [stackErrors, setStackErrors] = useState<Record<string, string>>({})
   const [exporting, setExporting] = useState<Stack | null>(null)
-  const [view, setView] = useState<'infra' | 'inspector'>('infra')
+  const [view, setView] = useState<'infra' | 'inspector' | 'chaos'>('infra')
 
   const refresh = useCallback(async () => {
     try {
@@ -112,9 +113,9 @@ export function App() {
       </header>
 
       <nav className="views" role="tablist">
-        {(['infra', 'inspector'] as const).map((v) => (
+        {(['infra', 'inspector', 'chaos'] as const).map((v) => (
           <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'tab on' : 'tab'} onClick={() => setView(v)}>
-            {t(v === 'infra' ? 'viewInfra' : 'viewInspector')}
+            {t(v === 'infra' ? 'viewInfra' : v === 'inspector' ? 'viewInspector' : 'viewChaos')}
           </button>
         ))}
       </nav>
@@ -126,6 +127,7 @@ export function App() {
       )}
 
       {view === 'inspector' && <InspectorView t={t} />}
+      {view === 'chaos' && <ChaosView t={t} />}
 
       <main hidden={view !== 'infra'}>
         {stackList.stacks.length > 0 && (
@@ -290,11 +292,12 @@ function ExportPanel({ stack, t, onClose }: { stack: Stack; t: (k: Key) => strin
   const [content, setContent] = useState('')
   const [filename, setFilename] = useState('')
   const [copied, setCopied] = useState(false)
+  const [viaChaos, setViaChaos] = useState(false)
 
   useEffect(() => {
     let alive = true
     api
-      .stackExport(stack.id, format)
+      .stackExport(stack.id, format, viaChaos)
       .then((r) => {
         if (!alive) return
         setContent(r.content)
@@ -308,7 +311,7 @@ function ExportPanel({ stack, t, onClose }: { stack: Stack; t: (k: Key) => strin
     return () => {
       alive = false
     }
-  }, [stack.id, format])
+  }, [stack.id, format, viaChaos])
 
   const copy = async () => {
     try {
@@ -342,6 +345,10 @@ function ExportPanel({ stack, t, onClose }: { stack: Stack; t: (k: Key) => strin
           </button>
         ))}
       </div>
+      <label className="field export-chaos">
+        <input type="checkbox" checked={viaChaos} onChange={(e) => setViaChaos(e.target.checked)} />
+        {t('viaChaos')}
+      </label>
       {filename && (
         <p className="hint">
           {t('exportHint')} <code>{filename}</code>

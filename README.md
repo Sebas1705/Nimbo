@@ -8,15 +8,16 @@ It does not emulate any cloud by itself. It orchestrates existing emulators ([Fl
 
 Early (M0-M2). Working today:
 
-- Catalog of 9 providers, grouped by cloud, started and stopped with one click.
+- Catalog of 10 providers, grouped by cloud, started and stopped with one click.
 - Live state of every container, logs panel and copy-ready client environment variables.
 - Docker-down detection, English and Spanish UI, light and dark theme.
 - Stacks defined in `nimbo.yml`: start or stop a whole group (AWS + MinIO, multicloud, event-driven...) in one click.
 - Export for a stack: `.env` variables, an OpenTofu/Terraform `nimbo_override.tf` that points the AWS provider at the emulator, and an AWS CLI profile.
 - Read-only resource inspector: S3 buckets and object previews, SQS queues with message peek, DynamoDB tables and items (typed values flattened to plain JSON), and Pub/Sub topics and subscriptions. Auto-refreshes and tells you when an emulator is down.
+- Fault injection with [Toxiproxy](https://github.com/Shopify/toxiproxy): latency, slow link, hang, connection reset, slow close, cut after N bytes and full outage, per emulator and live. Stacks can be exported to use the chaos ports.
 - Optional API token and secrets read from [Doppler](https://www.doppler.com) (nothing sensitive is stored in the repo).
 
-Planned: fault injection with Toxiproxy, a fidelity matrix and guided labs.
+Planned: a fidelity matrix and guided labs.
 
 ## Requirements
 
@@ -56,6 +57,12 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_STACKS_FILE` | Stacks file | `nimbo.yml`, then built-in stacks |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
+
+## Chaos
+
+Start the **Toxiproxy** provider, open the Chaos tab and apply a fault to an emulator. Each emulator gets a second port that goes through Toxiproxy (Floci AWS `4566` becomes `14566`, Redis `6379` becomes `16379`, ...); point your app at that port, or tick "Through chaos" when exporting a stack. Faults act on the emulator's responses and can affect only a percentage of connections. A proxy is created the first time you use a target, and `Reset all` restores every proxy.
+
+Limits: Redpanda is not proxied because Kafka clients reconnect to the broker's advertised address, and Toxiproxy reaches the emulators through `host.docker.internal`.
 
 ## Inspector
 

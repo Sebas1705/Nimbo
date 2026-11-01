@@ -45,9 +45,12 @@ fun Application.nimboModule(
     runtime: ContainerRuntime,
     stacks: StackCatalog = StackCatalog.builtIn,
     inspector: Inspector = Inspector(JavaHttpGateway()),
+    chaos: Chaos = Chaos(JavaHttpGateway()),
 ) {
     install(ContentNegotiation) { json() }
     install(StatusPages) {
+        exception<InvalidParam> { call, cause -> call.respond(HttpStatusCode.BadRequest, ErrorDto(cause.message ?: "Invalid parameter")) }
+        exception<UnknownTarget> { call, cause -> call.respond(HttpStatusCode.NotFound, ErrorDto(cause.message ?: "Unknown target")) }
         exception<InvalidName> { call, cause -> call.respond(HttpStatusCode.BadRequest, ErrorDto(cause.message ?: "Invalid name")) }
         exception<EmulatorUnreachable> { call, cause -> call.respond(HttpStatusCode.ServiceUnavailable, ErrorDto(cause.message ?: "Emulator not reachable")) }
         exception<EmulatorError> { call, cause ->
@@ -80,6 +83,7 @@ fun Application.nimboModule(
             providerRoutes(config, runtime)
             stackRoutes(config, runtime, stacks)
             inspectRoutes(inspector)
+            chaosRoutes(chaos)
         }
 
         config.webDir?.let { dir ->
@@ -174,10 +178,11 @@ private fun Route.stackRoutes(config: NimboConfig, runtime: ContainerRuntime, st
             if (format != ExportFormat.ENV && defs.none { it.id == "floci-aws" }) {
                 return@get call.respond(HttpStatusCode.Conflict, ErrorDto("Stack '${stack.id}' has no AWS emulator (floci-aws)"))
             }
+            val chaos = call.request.queryParameters["chaos"] == "true"
             val content = when (format) {
-                ExportFormat.ENV -> Exports.env(defs)
-                ExportFormat.TOFU -> Exports.tofuAwsOverride()
-                ExportFormat.AWS_CLI -> Exports.awsCliProfile()
+                ExportFormat.ENV -> Exports.env(defs, chaos)
+                ExportFormat.TOFU -> Exports.tofuAwsOverride(chaos)
+                ExportFormat.AWS_CLI -> Exports.awsCliProfile(chaos)
             }
             call.respond(ExportDto(format.id, format.filename, content))
         }

@@ -138,3 +138,24 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 .mini { margin: 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 12px; line-height: 1.5; overflow: auto; max-height: 340px; white-space: pre-wrap; word-break: break-word; }
 .msg { display: flex; flex-direction: column; gap: 3px; }
 .msg small { color: var(--muted); font-size: 11px; }
+
+.chaos-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.chaos-head p { margin: 0; }
+.chaos-card { --c: var(--other); }
+.chaos-card[data-chaos='faults'] { border-top-color: var(--warn); }
+.chaos-card[data-chaos='outage'] { border-top-color: var(--bad); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bad) 40%, transparent); }
+.pill.chaos-healthy { color: var(--ok); }
+.pill.chaos-healthy .dot { background: var(--ok); }
+.pill.chaos-faults { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, var(--surface-2)); }
+.pill.chaos-faults .dot { background: var(--warn); }
+.pill.chaos-outage { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, var(--surface-2)); }
+.pill.chaos-outage .dot { background: var(--bad); }
+.toxics { display: flex; flex-wrap: wrap; gap: 6px; }
+.toxic { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 999px; background: color-mix(in srgb, var(--warn) 14%, var(--surface-2)); font-size: 12px; }
+.toxic small { color: var(--muted); }
+.toxic button { border: 0; background: transparent; padding: 0 6px; font-size: 14px; line-height: 1; border-radius: 50%; }
+.chaos-card select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 13px; }
+.params { display: flex; flex-direction: column; gap: 6px; }
+.params .field { justify-content: space-between; margin: 0; }
+.params input[type='number'] { width: 110px; }
+.export-chaos { margin: 10px 16px 0; }

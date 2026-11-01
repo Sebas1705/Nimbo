@@ -109,6 +109,7 @@ class CliContainerRuntime(private val exec: Exec = ProcessExec()) : ContainerRun
             def.ports.forEach { addAll(listOf("-p", "127.0.0.1:$it:$it")) }
             def.containerEnv.forEach { (k, v) -> addAll(listOf("-e", "$k=$v")) }
             def.secretEnv.forEach { (container, host) -> addAll(listOf("-e", "$container=${hostEnv.getValue(host)}")) }
+            addAll(def.runArgs)
             add(def.image)
             addAll(def.command)
         }
