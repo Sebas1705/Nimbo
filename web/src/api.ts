@@ -17,6 +17,8 @@ export interface Provider {
   hasData?: boolean
   /** Required settings with no value yet: the emulator cannot start until they are initialized. */
   needsSetup?: string[]
+  /** One of your own images from the Registry (not an emulator that ships with Nimbo). */
+  custom?: boolean
 }
 
 export interface DockerStatus {
@@ -427,6 +429,92 @@ export const variables = {
   reveal: (name: string) => request<{ value: string; source: string }>(`/api/secrets/${seg(name)}/reveal`, { method: 'POST' }),
   /** Recreates a running emulator with the values it has now (its data volume stays). */
   apply: (provider: string) => request<{ applied: boolean; note: string | null }>(`/api/providers/${provider}/apply`, { method: 'POST' }),
+}
+
+// ---- Registry: own images, linked sources, compose profiles ---------------------------------------------------------
+
+export interface ImageBody {
+  name: string
+  image: string
+  ports: number[]
+  env: Array<{ key: string; value: string }>
+  secretKeys: string[]
+  command: string[]
+  volume: string | null
+  notes: string
+}
+export interface ImageDef extends ImageBody {
+  id: string
+  secrets: Array<{ key: string; name: string; set: boolean }>
+  custom: true
+}
+
+export interface SourceBody {
+  kind: 'local' | 'git'
+  path?: string
+  url?: string
+  branch?: string | null
+}
+export interface SourceDef {
+  id: string
+  kind: 'local' | 'git'
+  path: string | null
+  url: string | null
+  branch: string | null
+  dir: string
+  status: 'ok' | 'missing' | 'not-cloned' | 'error'
+  head: string | null
+  currentBranch: string | null
+  dirty: boolean
+  behind: number | null
+  syncedAt: number | null
+  error: string | null
+}
+
+/** source "" means the path is absolute; otherwise it is relative to that source's folder. */
+export interface ComposeFileRef { source: string; path: string }
+export interface ComposeBody {
+  name: string
+  purpose: string
+  files: ComposeFileRef[]
+  profiles: string[]
+  envFile: ComposeFileRef | null
+}
+export interface ComposeFileStatus { path: string; status: 'ok' | 'missing' | 'changed'; sha256: string | null }
+export interface ComposeService { name: string; state: string; health: string | null }
+export interface ComposeDef extends ComposeBody {
+  id: string
+  state: { running: number; total: number; services: ComposeService[] }
+  fileStatus: ComposeFileStatus[]
+  envFileStatus: ComposeFileStatus | null
+  lastUpSha: Record<string, string> | null
+  lastUpAt: number | null
+}
+
+const reg = '/api/registry'
+
+export const registry = {
+  images: {
+    list: () => request<ImageDef[]>(`${reg}/images`),
+    save: (id: string, body: ImageBody) => request<ImageDef>(`${reg}/images/${seg(id)}`, json(body, 'PUT')),
+    remove: (id: string) => request<void>(`${reg}/images/${seg(id)}`, { method: 'DELETE' }),
+  },
+  sources: {
+    list: () => request<SourceDef[]>(`${reg}/sources`),
+    save: (id: string, body: SourceBody) => request<SourceDef>(`${reg}/sources/${seg(id)}`, json(body, 'PUT')),
+    remove: (id: string) => request<void>(`${reg}/sources/${seg(id)}`, { method: 'DELETE' }),
+    sync: (id: string) => request<SourceDef>(`${reg}/sources/${seg(id)}/sync`, { method: 'POST' }),
+  },
+  compose: {
+    list: () => request<ComposeDef[]>(`${reg}/compose`),
+    save: (id: string, body: ComposeBody) => request<ComposeDef>(`${reg}/compose/${seg(id)}`, json(body, 'PUT')),
+    remove: (id: string) => request<void>(`${reg}/compose/${seg(id)}`, { method: 'DELETE' }),
+    validate: (id: string) => request<{ ok: boolean; message: string }>(`${reg}/compose/${seg(id)}/validate`, { method: 'POST' }),
+    up: (id: string) => request<ComposeDef>(`${reg}/compose/${seg(id)}/up`, { method: 'POST' }),
+    down: (id: string, volumes = false) => request<ComposeDef>(`${reg}/compose/${seg(id)}/down?volumes=${volumes}`, { method: 'POST' }),
+    logs: (id: string, service = '', tail = 200) => request<{ lines: string }>(`${reg}/compose/${seg(id)}/logs?tail=${tail}${service ? `&service=${seg(service)}` : ''}`),
+    file: (id: string, index: number) => request<{ path: string; content: string; truncated: boolean }>(`${reg}/compose/${seg(id)}/file?index=${index}`),
+  },
 }
 
 /** What is still needed before an emulator can start, as a short list of names. */

@@ -11,6 +11,7 @@ import { KubeView } from './Kube'
 import { LabsView } from './Labs'
 import { ExportPanel, SidePanel, type Panel } from './Panels'
 import { ProviderGuidePanel } from './ProviderGuide'
+import { RegistryView } from './Registry'
 import { TracesView } from './Traces'
 import { guideFor } from './guides'
 import { detectLang, translate, type Key, type Lang } from './i18n'
@@ -44,6 +45,7 @@ export function App() {
   const [tab, setTab] = useState<TabId | null>(null)
   const [firstTab, setFirstTab] = useState<TabId | null>(null)
   const [labFocus, setLabFocus] = useState<string | null>(null)
+  const [registryFocus, setRegistryFocus] = useState<string | null>(null)
   const [version, setVersion] = useState<string | null>(null)
   const [settings, setSettings] = useState<Settings | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
@@ -310,7 +312,14 @@ export function App() {
             onExport={setExporting}
             onGuide={setGuideId}
             onStacksChanged={refresh}
+            onRegistry={(id) => {
+              setRegistryFocus(id)
+              go('registry')
+            }}
           />
+        )}
+        {current === 'registry' && (
+          <RegistryView t={t} lang={lang} docker={docker} providers={providers} onChanged={refresh} go={go} focusImage={registryFocus} />
         )}
         {current === 'inspector' && <InspectorView t={t} />}
         {current === 'kube' && <KubeView t={t} />}

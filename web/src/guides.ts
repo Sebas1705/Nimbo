@@ -560,6 +560,14 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
       t('Solo la app de Windows se instala sola. Con el binario portable tendrás el archivo nuevo; con Docker, el comando para actualizar la imagen.', 'Only the Windows app installs itself. With the portable binary you get the new file; with Docker, the command to update the image.'),
     ],
   },
+  registry: {
+    points: [
+      t('Imágenes propias: registra una imagen de Docker tuya (nombre, puertos, variables) y Nimbo la trata como un emulador más: la arrancas, la paras, ves sus logs y la metes en un stack.', 'Own images: register a Docker image of yours (name, ports, variables) and Nimbo treats it like one more emulator: start it, stop it, read its logs and put it in a stack.'),
+      t('Repositorios: apunta a una carpeta de tu equipo o a una URL de Git. Nimbo lee los archivos cada vez, sin copiarlos, y te avisa si falta alguno o ha cambiado desde el último arranque.', 'Repositories: point to a folder on your computer or to a Git URL. Nimbo reads the files every time, without copying them, and tells you when one is missing or has changed since the last start.'),
+      t('Perfiles de compose: guarda qué archivos docker-compose (y qué perfiles y .env) levantan un entorno, y súbelo o bájalo con un botón. Nimbo solo toca los proyectos que él mismo creó.', 'Compose profiles: save which docker-compose files (and which profiles and .env) bring an environment up, then raise or lower it with a button. Nimbo only touches the projects it created itself.'),
+      t('Los valores secretos de una imagen propia no se escriben aquí: se rellenan en Ajustes, en las variables de emuladores.', 'The secret values of an own image are not typed here: you fill them in under Settings, in the emulator variables.'),
+    ],
+  },
   offline: {
     points: [
       t('Los emuladores son imágenes de Docker que normalmente se descargan al arrancarlos. Aquí ves cuáles ya están en tu equipo.', 'The emulators are Docker images that are normally downloaded when you start them. Here you see which ones are already on your computer.'),

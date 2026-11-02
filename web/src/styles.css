@@ -541,3 +541,60 @@ code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; font-siz
 .pick { display: flex !important; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text) !important; cursor: pointer; }
 .pick.on { border-color: var(--led); background: color-mix(in srgb, var(--led) 10%, var(--surface)); }
 .pick small { margin-left: auto; color: var(--muted); }
+
+/* ---- Registry: own images, repositories, compose profiles ------------------------------------------------------------ */
+.registry { display: grid; gap: 34px; }
+.reg-section { display: grid; gap: 12px; align-content: start; }
+.reg-wide { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }
+.reg-empty { background: var(--surface); border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: 22px; display: grid; gap: 8px; justify-items: start; }
+.reg-empty h3 { font: 650 17px/1.25 var(--font-display); }
+.reg-empty p { color: var(--ink-2); max-width: 62ch; font-size: 14px; }
+.reg-sub { color: var(--muted); font-size: 13px; word-break: break-word; }
+.reg-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.reg-facts dt { color: var(--muted); }
+.reg-facts dd { margin: 0; word-break: break-word; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.reg-secret { display: inline-flex; gap: 6px; align-items: center; }
+.reg-progress { display: flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 13px; }
+.spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-strong); border-top-color: var(--ink); animation: reg-spin 0.8s linear infinite; flex: none; }
+@keyframes reg-spin { to { transform: rotate(360deg); } }
+.reg-note { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; }
+.reg-files { display: grid; gap: 6px; font-size: 13px; }
+.reg-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.reg-files code { word-break: break-all; }
+.reg-panel { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+.reg-pre { margin: 0; max-height: 320px; overflow: auto; padding: 10px 12px; background: var(--sunken); border-radius: 6px; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
+.reg-pre:focus-visible { outline: 2px solid var(--ink); }
+.svc.on { color: var(--led); }
+.own-badge { margin-left: 8px; font: 600 11px var(--font-body); letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--led) 14%, var(--sunken)); color: var(--ink-2); vertical-align: middle; }
+
+.pill.tone-ok { color: var(--led); }
+.pill.tone-warn { color: var(--warn); }
+.pill.tone-bad { color: var(--bad); }
+.pill.tone-ok .dot { background: var(--led); }
+.pill.tone-warn .dot { background: var(--warn); }
+.pill.tone-bad .dot { background: var(--bad); }
+
+.reg-form .rf { display: grid; gap: 4px; min-width: 0; }
+.reg-form .rf > label, .rf-inline { font-size: 13px; color: var(--muted); }
+.rf-inline { display: inline-flex; align-items: center; gap: 8px; }
+.reg-form .rf input[aria-invalid='true'] { border-color: var(--bad); }
+.rf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; align-items: start; }
+.rf-group { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.rf-group legend { font-size: 13px; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.rf-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+.rf-row.rf-file { grid-template-columns: minmax(110px, 160px) 1fr auto; }
+.rf-row input, .rf-row select { min-width: 0; }
+.chip-input { display: grid; gap: 6px; }
+.chip-add { display: flex; gap: 6px; }
+.chip-add input { flex: 1; min-width: 0; }
+.chip-input .chips li { display: inline-flex; align-items: center; gap: 4px; }
+.chip-x { border: 0; background: transparent; padding: 0 2px; line-height: 1; color: var(--muted); font-size: 15px; }
+.chip-x:hover { color: var(--bad); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+@media (max-width: 640px) {
+  .rf-row, .rf-row.rf-file { grid-template-columns: 1fr auto; }
+  .rf-row.rf-file button { grid-row: 1 / span 2; grid-column: 2; align-self: start; }
+  .reg-wide { grid-template-columns: 1fr; }
+  .reg-facts { grid-template-columns: 1fr; }
+}

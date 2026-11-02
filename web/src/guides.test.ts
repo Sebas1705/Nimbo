@@ -95,7 +95,7 @@ describe('navigation', () => {
   it('lists every screen exactly once', () => {
     const ids = NAV.flatMap((g) => g.items.map((i) => i.id))
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ids.length).toBe(12)
+    expect(ids.length).toBe(13)
     expect(TAB_IDS).toEqual(ids)
   })
 

@@ -1,7 +1,7 @@
 import type { Key } from './i18n'
 
 /** Every screen of the app. */
-export type TabId = 'guide' | 'infra' | 'inspector' | 'kube' | 'traces' | 'chaos' | 'fidelity' | 'labs' | 'activity' | 'settings' | 'updates' | 'offline'
+export type TabId = 'guide' | 'infra' | 'registry' | 'inspector' | 'kube' | 'traces' | 'chaos' | 'fidelity' | 'labs' | 'activity' | 'settings' | 'updates' | 'offline'
 
 export interface NavItem {
   id: TabId
@@ -22,7 +22,7 @@ export interface NavGroup {
  */
 export const NAV: NavGroup[] = [
   { group: 'navStart', items: [{ id: 'guide', label: 'viewGuide', purpose: 'purposeGuide' }] },
-  { group: 'navBuild', items: [{ id: 'infra', label: 'viewInfra', purpose: 'purposeInfra' }] },
+  { group: 'navBuild', items: [{ id: 'infra', label: 'viewInfra', purpose: 'purposeInfra' }, { id: 'registry', label: 'viewRegistry', purpose: 'purposeRegistry' }] },
   {
     group: 'navObserve',
     items: [
