@@ -13,7 +13,7 @@ import (
 )
 
 func TestSecretNamesAreTheOnesProvidersRead(t *testing.T) {
-	coreTrue(t, reflect.DeepEqual([]string{"NIMBO_MINIO_USER", "NIMBO_MINIO_PASSWORD", "NIMBO_POSTGRES_PASSWORD"}, SecretNames))
+	coreTrue(t, reflect.DeepEqual([]string{"NIMBO_AZURITE_ACCOUNTS", "NIMBO_MINIO_USER", "NIMBO_MINIO_PASSWORD", "NIMBO_POSTGRES_PASSWORD", "NIMBO_POSTGRES_USER", "NIMBO_POSTGRES_DB", "NIMBO_K3S_TOKEN", "NIMBO_REDIS_PASSWORD"}, SecretNames))
 	coreTrue(t, reflect.DeepEqual([]string{"minio"}, SecretUsedBy("NIMBO_MINIO_USER")))
 	coreTrue(t, IsSecretPassword("NIMBO_POSTGRES_PASSWORD") && !IsSecretPassword("NIMBO_MINIO_USER"))
 }

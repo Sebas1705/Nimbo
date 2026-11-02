@@ -1,5 +1,7 @@
 package nimbo
 
+import "strings"
+
 // coreChaosTarget mirrors the ports of the Chaos area (Chaos.kt) that the catalog and the exports need: which
 // emulator port Toxiproxy fronts and where. It is private to core so the two areas do not share a type.
 type coreChaosTarget struct {
@@ -44,7 +46,7 @@ func catalogPersistence() map[string]*PersistSpec {
 		"redpanda":    {MountPath: "/var/lib/redpanda/data"},
 		// The official image declares this folder as a volume; naming it makes the data survive removing the container.
 		"postgres": {MountPath: "/var/lib/postgresql/data"},
-		"redis":    {MountPath: "/data", Command: []string{"redis-server", "--appendonly", "yes"}},
+		"redis":    {MountPath: "/data", Command: []string{"sh", "-c", redisStartScript(true)}},
 		"k3s":      {MountPath: "/var/lib/rancher/k3s"},
 		"jaeger": {
 			MountPath: "/badger",
@@ -118,7 +120,18 @@ func catalogProviders() []ProviderDef {
 			Description: "Official Azure Storage emulator (Blob, Queue, Table).",
 			Image:       "mcr.microsoft.com/azure-storage/azurite",
 			Ports:       []int{10000, 10001, 10002},
-			Endpoints:   Vars{{"AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true"}},
+			// Without an account, Azurite keeps its well-known development account.
+			Vars:      []VarSpec{{Name: "NIMBO_AZURITE_ACCOUNTS", Container: "AZURITE_ACCOUNTS", Secret: true, Generate: "azurite"}},
+			Endpoints: Vars{{"AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true"}},
+			Exports: func(v map[string]string) Vars {
+				name, key, ok := strings.Cut(strings.SplitN(v["NIMBO_AZURITE_ACCOUNTS"], ";", 2)[0], ":")
+				if !ok || name == "" {
+					return Vars{}
+				}
+				key = strings.SplitN(key, ":", 2)[0]
+				return Vars{{"AZURE_STORAGE_CONNECTION_STRING", "DefaultEndpointsProtocol=http;AccountName=" + name + ";AccountKey=" + key +
+					";BlobEndpoint=http://127.0.0.1:10000/" + name + ";QueueEndpoint=http://127.0.0.1:10001/" + name + ";TableEndpoint=http://127.0.0.1:10002/" + name + ";"}}
+			},
 		},
 		{
 			ID: "minio", Name: "MinIO", Cloud: CloudOther,
@@ -127,11 +140,22 @@ func catalogProviders() []ProviderDef {
 			Image:   "cgr.dev/chainguard/minio",
 			Ports:   []int{9000, 9001},
 			Command: []string{"server", "/data", "--console-address", ":9001"},
-			SecretEnv: Vars{
-				{"MINIO_ROOT_USER", "NIMBO_MINIO_USER"},
-				{"MINIO_ROOT_PASSWORD", "NIMBO_MINIO_PASSWORD"},
+			Vars: []VarSpec{
+				{Name: "NIMBO_MINIO_USER", Container: "MINIO_ROOT_USER", Required: true, Default: "nimbo"},
+				{Name: "NIMBO_MINIO_PASSWORD", Container: "MINIO_ROOT_PASSWORD", Secret: true, Required: true, Generate: "password"},
 			},
 			Endpoints: Vars{{"MINIO_ENDPOINT", "http://localhost:9000"}},
+			Exports: func(v map[string]string) Vars {
+				out := Vars{}
+				if v["NIMBO_MINIO_USER"] != "" {
+					// MinIO speaks S3: the root user and password are the access key and secret of any S3 client.
+					out = append(out, KV{"MINIO_ROOT_USER", v["NIMBO_MINIO_USER"]}, KV{"AWS_ACCESS_KEY_ID", v["NIMBO_MINIO_USER"]})
+				}
+				if v["NIMBO_MINIO_PASSWORD"] != "" {
+					out = append(out, KV{"MINIO_ROOT_PASSWORD", v["NIMBO_MINIO_PASSWORD"]}, KV{"AWS_SECRET_ACCESS_KEY", v["NIMBO_MINIO_PASSWORD"]})
+				}
+				return out
+			},
 		},
 		{
 			ID: "redpanda", Name: "Redpanda", Cloud: CloudOther,
@@ -151,8 +175,21 @@ func catalogProviders() []ProviderDef {
 			Description: "Relational database for RDS / Cloud SQL style practice.",
 			Image:       "postgres:17-alpine",
 			Ports:       []int{5432},
-			SecretEnv:   Vars{{"POSTGRES_PASSWORD", "NIMBO_POSTGRES_PASSWORD"}},
-			Endpoints:   Vars{{"DATABASE_HOST", "localhost"}, {"DATABASE_PORT", "5432"}},
+			Vars: []VarSpec{
+				{Name: "NIMBO_POSTGRES_PASSWORD", Container: "POSTGRES_PASSWORD", Secret: true, Required: true, Generate: "password", FixedAtCreation: true},
+				// User and database are only read when the data folder is first created; the image defaults are postgres.
+				{Name: "NIMBO_POSTGRES_USER", Container: "POSTGRES_USER", Default: "nimbo", FixedAtCreation: true},
+				{Name: "NIMBO_POSTGRES_DB", Container: "POSTGRES_DB", Default: "nimbo", FixedAtCreation: true},
+			},
+			Endpoints: Vars{{"DATABASE_HOST", "localhost"}, {"DATABASE_PORT", "5432"}},
+			Exports: func(v map[string]string) Vars {
+				user, db, pw := orDefault(v["NIMBO_POSTGRES_USER"], "postgres"), orDefault(v["NIMBO_POSTGRES_DB"], orDefault(v["NIMBO_POSTGRES_USER"], "postgres")), v["NIMBO_POSTGRES_PASSWORD"]
+				out := Vars{{"DATABASE_USER", user}, {"DATABASE_NAME", db}}
+				if pw != "" {
+					out = append(out, KV{"DATABASE_PASSWORD", pw}, KV{"DATABASE_URL", "postgres://" + user + ":" + pw + "@localhost:5432/" + db})
+				}
+				return out
+			},
 		},
 		{
 			ID: "toxiproxy", Name: "Toxiproxy", Cloud: CloudOther,
@@ -171,7 +208,14 @@ func catalogProviders() []ProviderDef {
 			Command:      []string{"server", "--disable=traefik"},
 			RunArgs:      []string{"--privileged", "--tmpfs", "/run", "--tmpfs", "/var/run"},
 			ContainerEnv: Vars{{"K3S_KUBECONFIG_MODE", "644"}},
+			Vars:         []VarSpec{{Name: "NIMBO_K3S_TOKEN", Container: "K3S_TOKEN", Secret: true, Generate: "token"}},
 			Endpoints:    Vars{{"KUBERNETES_API", "https://127.0.0.1:6443"}},
+			Exports: func(v map[string]string) Vars {
+				if v["NIMBO_K3S_TOKEN"] == "" {
+					return Vars{}
+				}
+				return Vars{{"K3S_TOKEN", v["NIMBO_K3S_TOKEN"]}}
+			},
 		},
 		{
 			ID: "jaeger", Name: "Jaeger", Cloud: CloudOther,
@@ -188,7 +232,19 @@ func catalogProviders() []ProviderDef {
 			Description: "Cache / queue practice (ElastiCache, Memorystore).",
 			Image:       "redis:7-alpine",
 			Ports:       []int{6379},
-			Endpoints:   Vars{{"REDIS_URL", "redis://localhost:6379"}},
+			// Without a password Redis starts as before; with one, requirepass is added. The password reaches Redis as an
+			// environment variable and is expanded by the shell, so it never shows up in the command line.
+			Command: []string{"sh", "-c", redisStartScript(false)},
+			Vars: []VarSpec{
+				{Name: "NIMBO_REDIS_PASSWORD", Container: "REDIS_PASSWORD", Secret: true, Generate: "password"},
+			},
+			Endpoints: Vars{{"REDIS_URL", "redis://localhost:6379"}},
+			Exports: func(v map[string]string) Vars {
+				if v["NIMBO_REDIS_PASSWORD"] == "" {
+					return Vars{}
+				}
+				return Vars{{"REDIS_PASSWORD", v["NIMBO_REDIS_PASSWORD"]}, {"REDIS_URL", "redis://:" + v["NIMBO_REDIS_PASSWORD"] + "@localhost:6379"}}
+			},
 		},
 	}
 	persistence := catalogPersistence()
@@ -209,4 +265,14 @@ func CatalogFind(id string) *ProviderDef {
 		}
 	}
 	return nil
+}
+
+// redisStartScript starts Redis, adding requirepass only when REDIS_PASSWORD is set and, when the data is kept,
+// the append-only file. The script is a fixed text: the password is read from the environment by the shell.
+func redisStartScript(appendOnly bool) string {
+	flags := ""
+	if appendOnly {
+		flags = " --appendonly yes"
+	}
+	return "exec redis-server" + flags + ` ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}`
 }

@@ -15,6 +15,8 @@ export interface Provider {
   persist?: boolean
   /** A Docker volume with saved data exists right now. */
   hasData?: boolean
+  /** Required settings with no value yet: the emulator cannot start until they are initialized. */
+  needsSetup?: string[]
 }
 
 export interface DockerStatus {
@@ -172,7 +174,7 @@ export const api = {
   setPersist: (id: string, enabled: boolean) => request<Settings>(`/api/providers/${id}/persist`, json({ enabled })),
   deleteData: (id: string) => request<void>(`/api/providers/${id}/data?confirm=yes`, { method: 'DELETE' }),
   logs: (id: string) => request<{ lines: string }>(`/api/providers/${id}/logs?tail=300`),
-  env: (id: string) => request<{ dotenv: string }>(`/api/providers/${id}/env`),
+  env: (id: string, secrets = false) => request<{ dotenv: string }>(`/api/providers/${id}/env${secrets ? '?secrets=true' : ''}`),
   stacks: () => request<StackList>('/api/stacks'),
   stackUp: (id: string) => request<StackAction>(`/api/stacks/${id}/up`, { method: 'POST' }),
   stackDown: (id: string) => request<StackAction>(`/api/stacks/${id}/down`, { method: 'POST' }),
@@ -394,4 +396,36 @@ export const images = {
   status: () => request<ImagesView>('/api/images'),
   load: (path: string) => request<{ loaded: string[] }>('/api/images/load', json({ path })),
   pull: (provider: string) => request<void>('/api/images/pull', json({ provider })),
+}
+
+// ---- Emulator variables ---------------------------------------------------------------------------------------------
+
+export interface VarInfo {
+  name: string
+  container: string
+  secret: boolean
+  required: boolean
+  canGenerate: boolean
+  default: string | null
+  /** Only takes effect when the emulator's data is first created. */
+  fixedAtCreation: boolean
+  source: 'environment' | 'stored' | 'unset'
+  set: boolean
+}
+export interface ProviderVars { provider: string; name: string; vars: VarInfo[] }
+export interface VariablesView { available: boolean; reason: string | null; providers: ProviderVars[] }
+
+export const variables = {
+  list: () => request<VariablesView>('/api/variables'),
+  /** Fills in every setting of an emulator that has none. Optional ones only when asked. */
+  init: (provider: string, optional = false) => request<{ created: string[] }>(`/api/providers/${provider}/variables/init${optional ? '?optional=true' : ''}`, { method: 'POST' }),
+  /** Reads one value back. A deliberate action: it is written to the journal (the name, never the value). */
+  reveal: (name: string) => request<{ value: string; source: string }>(`/api/secrets/${seg(name)}/reveal`, { method: 'POST' }),
+  /** Recreates a running emulator with the values it has now (its data volume stays). */
+  apply: (provider: string) => request<{ applied: boolean; note: string | null }>(`/api/providers/${provider}/apply`, { method: 'POST' }),
+}
+
+/** What is still needed before an emulator can start, as a short list of names. */
+export function setupMissing(p: Pick<Provider, 'needsSetup'>): string[] {
+  return p.needsSetup ?? []
 }

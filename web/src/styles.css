@@ -511,3 +511,14 @@ code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; font-siz
 .actions.wide input { flex: 1 1 220px; min-width: 0; }
 .folder { margin-left: 6px; }
 .backup { display: grid; gap: 10px; padding-top: 6px; border-top: 1px solid var(--line); }
+
+/* ---- Emulator variables ------------------------------------------------------------------------------------------ */
+.vars { display: grid; gap: 8px; }
+.var-group { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--surface-2); }
+.var-group > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; padding: 4px 0; }
+.var-group > summary::-webkit-details-marker { display: none; }
+.var-group[open] > summary { padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.var-group .secrets li > div:first-child small { display: block; }
+.secret-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.secret-row .secret-once { flex: 1 1 260px; }
+.setup { color: var(--bad); font-size: 13px; }

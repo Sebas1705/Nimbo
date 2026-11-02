@@ -245,7 +245,9 @@ func TestRecipesUseRealProvidersWithoutSecrets(t *testing.T) {
 			def := CatalogFind(m[1])
 			coreTrue(t, def != nil, "recipe starts unknown provider "+m[1])
 			if def != nil {
-				coreEq(t, 0, len(def.SecretEnv), m[1]+" needs a secret")
+				for _, v := range def.Vars {
+					coreTrue(t, !v.Required, m[1]+" needs "+v.Name+": a recipe must work on a fresh install")
+				}
 			}
 		}
 	}

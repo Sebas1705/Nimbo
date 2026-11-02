@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROVIDER_GUIDES, RECIPES, STACK_BLURBS, TAB_HELP, guideFor, stackBlurb, type L10n } from './guides'
+import { NO_VARS_NOTE, PROVIDER_GUIDES, RECIPES, STACK_BLURBS, TAB_HELP, VAR_HELP, guideFor, stackBlurb, type L10n } from './guides'
 import { missingKeys, translate, type Key } from './i18n'
 import { NAV, TAB_IDS, groupOf, itemOf, startTab } from './nav'
 
@@ -119,5 +119,16 @@ describe('navigation', () => {
 describe('translations', () => {
   it('have the same keys in Spanish and English', () => {
     expect(missingKeys()).toEqual({ es: [], en: [] })
+  })
+})
+
+describe('emulator variables', () => {
+  it('are all explained, in both languages, and named like the backend names them', () => {
+    expect(Object.keys(VAR_HELP).length).toBeGreaterThanOrEqual(8)
+    for (const [name, h] of Object.entries(VAR_HELP)) {
+      expect(name).toMatch(/^NIMBO_[A-Z0-9_]+$/)
+      expect([h.label.es, h.label.en, h.help.es, h.help.en].every(filled), name).toBe(true)
+    }
+    expect(both(NO_VARS_NOTE).every(filled)).toBe(true)
   })
 })

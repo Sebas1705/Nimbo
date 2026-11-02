@@ -89,13 +89,13 @@ func (c *CliContainerRuntime) Containers(ctx context.Context) map[string]Contain
 
 func (c *CliContainerRuntime) Start(ctx context.Context, def ProviderDef, hostEnv map[string]string, persist bool) error {
 	var missing []string
-	for _, kv := range def.SecretEnv {
-		if strings.TrimSpace(hostEnv[kv.Value]) == "" {
-			missing = append(missing, kv.Value)
+	for _, v := range def.Vars {
+		if v.Required && strings.TrimSpace(hostEnv[v.Name]) == "" {
+			missing = append(missing, v.Name)
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("Missing secrets: %s. Set them in Nimbo's environment (a .env file with docker compose, or 'doppler run --').", strings.Join(missing, ", "))
+		return fmt.Errorf("Missing settings: %s. Initialize them in Nimbo (Settings > Emulator variables), or set them in Nimbo's environment (a .env file with docker compose, or 'doppler run --').", strings.Join(missing, ", "))
 	}
 	wanted := persist && def.Persist != nil
 	existing, found := c.Containers(ctx)[def.ID]
@@ -195,8 +195,11 @@ func BuildRunArgs(def ProviderDef, hostEnv map[string]string, persist bool) []st
 			args = append(args, "-e", kv.Key+"="+kv.Value)
 		}
 	}
-	for _, kv := range def.SecretEnv {
-		args = append(args, "-e", kv.Key+"="+hostEnv[kv.Value])
+	for _, v := range def.Vars {
+		// Optional settings only reach the container when they have a value.
+		if val := strings.TrimSpace(hostEnv[v.Name]); v.Container != "" && val != "" {
+			args = append(args, "-e", v.Container+"="+hostEnv[v.Name])
+		}
 	}
 	args = append(args, def.RunArgs...)
 	args = append(args, def.Image)

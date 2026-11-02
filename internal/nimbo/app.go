@@ -92,6 +92,7 @@ func NewServer(cfg Config, deps Deps) http.Handler {
 	(&ProviderRoutes{Config: cfg, Runtime: deps.Runtime, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	(&StackRoutes{Config: cfg, Runtime: deps.Runtime, Stacks: deps.Stacks, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	(&DataRoutes{Data: deps.Data, Secrets: deps.Secrets, Config: cfg}).Register(mux)
+	(&VariableRoutes{Config: cfg, Runtime: deps.Runtime, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	for _, register := range deps.Routes {
 		register(mux)
 	}

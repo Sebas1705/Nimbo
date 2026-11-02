@@ -53,7 +53,7 @@ describe('describeEntry', () => {
     const kinds = [
       'provider.start', 'provider.stop', 'provider.remove', 'provider.persist', 'provider.data.delete', 'stack.up', 'stack.down', 'lab.verify',
       'lab.complete', 'fidelity.run', 'export', 'secret.set', 'secret.delete', 'update.check', 'update.download', 'update.import',
-      'update.install', 'images.load', 'images.pull', 'settings.change', 'data.import',
+      'secret.reveal', 'variables.init', 'variables.apply', 'update.install', 'images.load', 'images.pull', 'settings.change', 'data.import',
     ]
     for (const k of kinds) {
       for (const lang of ['es', 'en'] as const) expect(describeEntry({ at: 0, kind: k, subject: 's' }, lang)).not.toBe(`${k} s`)

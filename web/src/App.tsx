@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, api, countRunning, failures, system, updates as updatesApi, type DockerStatus, type Provider, type Settings, type Stack, type StackList, type UpdateStatus } from './api'
+import { ApiError, api, countRunning, failures, system, updates as updatesApi, variables, type DockerStatus, type Provider, type Settings, type Stack, type StackList, type UpdateStatus } from './api'
 import { Logo, TokenGate } from './Brand'
 import { ChaosView } from './Chaos'
 import { FidelityView } from './Fidelity'
@@ -125,6 +125,10 @@ export function App() {
       if (action === 'persistOn') await api.setPersist(p.id, true)
       else if (action === 'persistOff') await api.setPersist(p.id, false)
       else if (action === 'deleteData') await api.deleteData(p.id)
+      else if (action === 'initStart') {
+        await variables.init(p.id)
+        await api.start(p.id)
+      }
       else await api[action](p.id)
     } catch (e) {
       setErrors((prev) => ({ ...prev, [p.id]: e instanceof Error ? e.message : String(e) }))

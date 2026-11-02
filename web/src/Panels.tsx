@@ -19,11 +19,12 @@ async function copyText(text: string, done: () => void) {
 export function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t: T; onClose: () => void }) {
   const [text, setText] = useState('')
   const [copied, setCopied] = useState(false)
+  const [withSecrets, setWithSecrets] = useState(false)
 
   useEffect(() => {
     let alive = true
     const load = () =>
-      (panel.kind === 'logs' ? api.logs(panel.provider.id).then((r) => r.lines) : api.env(panel.provider.id).then((r) => r.dotenv))
+      (panel.kind === 'logs' ? api.logs(panel.provider.id).then((r) => r.lines) : api.env(panel.provider.id, withSecrets).then((r) => r.dotenv))
         .then((v) => alive && setText(v))
         .catch((e) => alive && setText(e instanceof Error ? e.message : String(e)))
     load()
@@ -32,7 +33,7 @@ export function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t:
       alive = false
       if (id) clearInterval(id)
     }
-  }, [panel])
+  }, [panel, withSecrets])
 
   return (
     <aside className="panel" role="dialog" aria-label={panel.provider.name}>
@@ -52,6 +53,11 @@ export function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t:
           >
             {copied ? t('copied') : t('copy')}
           </button>
+          {panel.kind === 'env' && (
+            <button className="ghost" onClick={() => setWithSecrets((v) => !v)} title="Los valores reales quedan anotados en el diario / Real values are noted in the journal">
+              {withSecrets ? 'Ocultar contraseñas / Hide passwords' : 'Mostrar contraseñas / Show passwords'}
+            </button>
+          )}
           <button className="ghost" onClick={onClose}>
             {t('close')}
           </button>

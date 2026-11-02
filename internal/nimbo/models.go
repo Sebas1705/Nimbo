@@ -75,13 +75,34 @@ type ProviderDef struct {
 	RunArgs []string
 	// ContainerEnv is the container env with fixed, non-secret values.
 	ContainerEnv Vars
-	// SecretEnv is the container env whose value is read from Nimbo's own environment (fed by Doppler):
-	// container var -> host var.
-	SecretEnv Vars
+	// Vars are the settings an emulator can be given when it starts: passwords, users, keys, tokens. Each is kept in
+	// Nimbo's secret store (or read from its environment) and handed to the container; none is ever in this file.
+	Vars []VarSpec
+	// Exports are the client-side variables that depend on those settings (a database URL with its password). The
+	// values map holds what is set, by VarSpec.Name; secrets are placeholders unless the person asked to see them.
+	Exports func(values map[string]string) Vars
 	// Endpoints are the variables a client should set to talk to this provider.
 	Endpoints Vars
 	// Persist is nil when the provider has nothing worth keeping (a proxy, an emulator without persistence).
 	Persist *PersistSpec
+}
+
+// VarSpec describes one setting of an emulator.
+type VarSpec struct {
+	// Name is its key in the secret store and in Nimbo's environment, always NIMBO_*.
+	Name string
+	// Container is the variable it becomes inside the container.
+	Container string
+	// Secret values are masked in lists and need an explicit "reveal" to be read back.
+	Secret bool
+	// Required settings stop the emulator from starting when missing; optional ones only change it when set.
+	Required bool
+	// Generate says how Initialize makes a value: "password", "token" or "azurite" (an account:key pair).
+	Generate string
+	// Default is what Initialize stores when nothing is generated (a user name, a database name).
+	Default string
+	// FixedAtCreation: the emulator only reads it when its data is first created (PostgreSQL user, database, password).
+	FixedAtCreation bool
 }
 
 type RunState string
@@ -108,6 +129,8 @@ type ProviderDto struct {
 	Persist bool `json:"persist"`
 	// HasData: is there saved data in a volume right now?
 	HasData bool `json:"hasData"`
+	// NeedsSetup lists the required settings that have no value yet; the emulator cannot start until they do.
+	NeedsSetup []string `json:"needsSetup"`
 }
 
 type DockerStatusDto struct {

@@ -7,7 +7,7 @@ import type { Key, Lang } from './i18n'
 type T = (k: Key) => string
 
 /** What a card can ask for: the container lifecycle, the "keep my data" switch, and deleting what was kept. */
-export type ProviderAction = 'start' | 'stop' | 'remove' | 'persistOn' | 'persistOff' | 'deleteData'
+export type ProviderAction = 'start' | 'stop' | 'remove' | 'persistOn' | 'persistOff' | 'deleteData' | 'initStart'
 
 interface Props {
   t: T
@@ -139,6 +139,12 @@ function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Pro
         </div>
       )}
 
+      {p.state !== 'running' && (p.needsSetup?.length ?? 0) > 0 && (
+        <p className="setup">
+          {lang === 'es' ? 'Necesita credenciales antes de arrancar: ' : 'It needs credentials before it can start: '}
+          <code>{p.needsSetup!.join(', ')}</code>
+        </p>
+      )}
       {errors[p.id] && <p className="err">{errors[p.id]}</p>}
       <div className="actions">
         {p.state === 'running' ? (
@@ -146,8 +152,8 @@ function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Pro
             {t('stop')}
           </button>
         ) : (
-          <button className="primary" disabled={busy.has(p.id) || !docker?.available} onClick={() => act(p, 'start')}>
-            {t('start')}
+          <button className="primary" disabled={busy.has(p.id) || !docker?.available} onClick={() => act(p, (p.needsSetup?.length ?? 0) > 0 ? 'initStart' : 'start')}>
+            {(p.needsSetup?.length ?? 0) > 0 ? (lang === 'es' ? 'Inicializar y arrancar' : 'Initialize and start') : t('start')}
           </button>
         )}
         <button className="ghost" onClick={() => onGuide(p.id)}>

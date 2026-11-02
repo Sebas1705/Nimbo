@@ -114,7 +114,10 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	// Plain text, not HTML-safe: a placeholder like <NAME> must stay readable in the answer.
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(v)
 }
 
 // ReadJSON decodes the body into v, answering BadBody when it is missing or malformed.

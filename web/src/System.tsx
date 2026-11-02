@@ -2,17 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   images as imagesApi,
   system,
+  variables,
   updates as updatesApi,
   formatBytes,
   type DataInfo,
   type ImagesView,
   type Provider,
   type ResetWhat,
-  type SecretsView,
+  type VariablesView,
   type Settings,
   type StatsView,
   type UpdateStatus,
 } from './api'
+import { NO_VARS_NOTE, VAR_HELP } from './guides'
 import type { Key, Lang } from './i18n'
 import { ago, backupName, describeEntry, formatUptime, installerFor, maskSecret, parseBackup, usageRanking } from './systemLogic'
 
@@ -183,7 +185,7 @@ interface SettingsProps {
 
 export function SettingsView({ lang, providers, settings, onSettings, onChanged }: SettingsProps) {
   const info = useLoad<DataInfo>(system.data)
-  const secrets = useLoad<SecretsView>(system.secrets)
+  const vars = useLoad<VariablesView>(variables.list)
   const persistable = providers.filter((p) => p.persistable)
 
   return (
@@ -230,7 +232,7 @@ export function SettingsView({ lang, providers, settings, onSettings, onChanged 
         <p className="muted">{pick(lang, 'Con PostgreSQL conservado, la contraseña queda fijada al crear la base de datos.', 'With PostgreSQL data kept, the password is fixed when the database is created.')}</p>
       </section>
 
-      <SecretsCard lang={lang} view={secrets.data} error={secrets.error} reload={() => { secrets.reload(); onChanged() }} />
+      <VariablesCard lang={lang} view={vars.data} error={vars.error} providers={providers} reload={() => { vars.reload(); onChanged() }} />
 
       <section className="sys-card">
         <h3>{pick(lang, 'Carpeta de datos', 'Data folder')}</h3>
@@ -248,62 +250,104 @@ export function SettingsView({ lang, providers, settings, onSettings, onChanged 
   )
 }
 
-function SecretsCard({ lang, view, error, reload }: { lang: Lang; view: SecretsView | null; error: string; reload: () => void }) {
+/** The settings of every emulator: what it can be given, where each value comes from, and the actions to set, show, generate, delete and apply them. */
+function VariablesCard({ lang, view, error, providers, reload }: { lang: Lang; view: VariablesView | null; error: string; providers: Provider[]; reload: () => void }) {
   const [draft, setDraft] = useState<Record<string, string>>({})
-  const [shown, setShown] = useState<{ name: string; value: string } | null>(null)
+  const [shown, setShown] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState<Record<string, string>>({})
   const act = useAction()
-  if (!view) return <section className="sys-card"><h3>{pick(lang, 'Contraseñas', 'Passwords')}</h3><p className="muted">{error || '…'}</p></section>
+  if (!view) return <section className="sys-card"><h3>{pick(lang, 'Variables de los emuladores', 'Emulator variables')}</h3><p className="muted">{error || '…'}</p></section>
+
+  const state = (id: string) => providers.find((p) => p.id === id)?.state
+  const reveal = (name: string) => act.run(async () => { const r = await variables.reveal(name); setShown((s) => ({ ...s, [name]: r.value })) })
+  const hide = (name: string) => setShown((s) => { const { [name]: _gone, ...rest } = s; return rest })
+  const copy = (text: string) => { try { void navigator.clipboard.writeText(text) } catch { /* the value is on screen anyway */ } }
 
   return (
     <section className="sys-card">
-      <h3>{pick(lang, 'Contraseñas y usuarios', 'Passwords and users')}</h3>
+      <h3>{pick(lang, 'Variables de los emuladores', 'Emulator variables')}</h3>
       <p className="muted">
         {view.available
-          ? pick(lang, 'Se guardan cifradas con tu usuario de Windows. Una variable de entorno con el mismo nombre tiene prioridad.', 'They are stored encrypted for your Windows user. An environment variable with the same name takes priority.')
+          ? pick(lang, 'Contraseñas, usuarios y claves de cada emulador, guardadas cifradas con tu usuario de Windows. Una variable de entorno con el mismo nombre tiene prioridad. Los valores no se muestran hasta que pulsas «Mostrar».', 'Passwords, users and keys of each emulator, stored encrypted for your Windows user. An environment variable with the same name takes priority. Values are not shown until you press "Show".')
           : view.reason}
       </p>
-      <ul className="secrets">
-        {view.items.map((s) => (
-          <li key={s.name}>
-            <div>
-              <code>{s.name}</code>
-              <small>{pick(lang, 'Lo usan: ', 'Used by: ')}{s.usedBy.join(', ')}</small>
-            </div>
-            <span className="mask" aria-label={s.set ? pick(lang, 'guardado', 'stored') : pick(lang, 'sin guardar', 'not stored')}>{maskSecret(s.set) || '—'}</span>
-            {view.available && (
-              <div className="actions">
-                <input
-                  type={s.password ? 'password' : 'text'}
-                  autoComplete="off"
-                  placeholder={s.password ? pick(lang, 'Nueva contraseña', 'New password') : pick(lang, 'Nuevo usuario', 'New user')}
-                  value={draft[s.name] ?? ''}
-                  onChange={(e) => setDraft((d) => ({ ...d, [s.name]: e.target.value }))}
-                />
-                <button disabled={act.busy || !(draft[s.name] ?? '')} onClick={() => act.run(async () => { await system.setSecret(s.name, draft[s.name]); setDraft((d) => ({ ...d, [s.name]: '' })); reload(); return pick(lang, 'Guardado.', 'Saved.') })}>
-                  {pick(lang, 'Guardar', 'Save')}
-                </button>
-                {s.password && (
-                  <button className="ghost" disabled={act.busy} onClick={() => act.run(async () => { const r = await system.generateSecret(s.name); setShown({ name: s.name, value: r.value }); reload() })}>
-                    {pick(lang, 'Generar', 'Generate')}
+      <div className="vars">
+        {view.providers.map((p) => (
+          <details key={p.provider} className="var-group" open={p.vars.some((v) => v.required && !v.set)}>
+            <summary>
+              <b>{p.name}</b>
+              <span className="muted">
+                {p.vars.length === 0 ? pick(lang, 'sin variables', 'no variables') : pick(lang, `${p.vars.filter((v) => v.set).length} de ${p.vars.length} con valor`, `${p.vars.filter((v) => v.set).length} of ${p.vars.length} set`)}
+              </span>
+              {p.vars.some((v) => v.required && !v.set) && <span className="pill stopped">{pick(lang, 'falta configurar', 'needs setup')}</span>}
+            </summary>
+            {p.vars.length === 0 ? (
+              <p className="muted">{NO_VARS_NOTE[lang]}</p>
+            ) : (
+              <>
+                <div className="actions">
+                  <button disabled={act.busy || !view.available} onClick={() => act.run(async () => { const r = await variables.init(p.provider); reload(); return r.created.length ? pick(lang, `Inicializadas: ${r.created.join(', ')}.`, `Initialized: ${r.created.join(', ')}.`) : pick(lang, 'Nada que inicializar: lo necesario ya tiene valor.', 'Nothing to initialize: what is needed already has a value.') })}>
+                    {pick(lang, 'Inicializar lo necesario', 'Initialize what is needed')}
                   </button>
-                )}
-                {s.set && <button className="ghost danger" disabled={act.busy} onClick={() => act.run(async () => { await system.deleteSecret(s.name); reload() })}>{pick(lang, 'Borrar', 'Delete')}</button>}
-              </div>
+                  <button className="ghost" disabled={act.busy || !view.available} onClick={() => act.run(async () => { const r = await variables.init(p.provider, true); reload(); return r.created.length ? pick(lang, `Inicializadas: ${r.created.join(', ')}.`, `Initialized: ${r.created.join(', ')}.`) : pick(lang, 'Todo tiene ya un valor.', 'Everything has a value already.') })}>
+                    {pick(lang, 'Inicializar también las opcionales', 'Initialize the optional ones too')}
+                  </button>
+                  {state(p.provider) && state(p.provider) !== 'not_created' && (
+                    <button className="ghost" disabled={act.busy} title={pick(lang, 'Recrea el contenedor con los valores actuales; sus datos guardados se conservan.', 'Recreates the container with the current values; its saved data is kept.')} onClick={() => {
+                      if (!window.confirm(pick(lang, `Se recreará el contenedor de ${p.name} para usar los valores actuales. ¿Continuar?`, `The ${p.name} container will be recreated to use the current values. Continue?`))) return
+                      act.run(async () => { const r = await variables.apply(p.provider); reload(); if (r.note) setNotes((n) => ({ ...n, [p.provider]: r.note! })); return r.applied ? pick(lang, 'Aplicado: el emulador se ha reiniciado con los valores nuevos.', 'Applied: the emulator restarted with the new values.') : pick(lang, 'El contenedor se ha quitado; el próximo arranque usará los valores nuevos.', 'The container was removed; the next start will use the new values.') })
+                    }}>
+                      {state(p.provider) === 'running' ? pick(lang, 'Aplicar al emulador en marcha', 'Apply to the running emulator') : pick(lang, 'Preparar el próximo arranque', 'Prepare the next start')}
+                    </button>
+                  )}
+                </div>
+                {notes[p.provider] && <p className="err">{notes[p.provider]}</p>}
+                <ul className="secrets">
+                  {p.vars.map((v) => {
+                    const help = VAR_HELP[v.name]
+                    return (
+                      <li key={v.name}>
+                        <div>
+                          <b>{help?.label[lang] ?? v.name}</b> <code>{v.name}</code>
+                          <small>
+                            {v.required ? pick(lang, 'Obligatoria', 'Required') : pick(lang, 'Opcional', 'Optional')} · {v.source === 'environment' ? pick(lang, 'viene del entorno', 'from the environment') : v.source === 'stored' ? pick(lang, 'guardada', 'stored') : pick(lang, 'sin valor', 'not set')}
+                            {v.fixedAtCreation && ` · ${pick(lang, 'solo al crear los datos', 'only when data is first created')}`}
+                          </small>
+                          {help && <small>{help.help[lang]}</small>}
+                        </div>
+                        <span className="mask">{shown[v.name] === undefined ? maskSecret(v.set) || '—' : ''}</span>
+                        {shown[v.name] !== undefined && (
+                          <div className="secret-row">
+                            <code className="secret-once">{shown[v.name]}</code>
+                            <button onClick={() => copy(shown[v.name])}>{pick(lang, 'Copiar', 'Copy')}</button>
+                            <button className="ghost" onClick={() => hide(v.name)}>{pick(lang, 'Ocultar', 'Hide')}</button>
+                          </div>
+                        )}
+                        <div className="actions">
+                          <input
+                            type={v.secret ? 'password' : 'text'}
+                            autoComplete="off"
+                            placeholder={v.default ? `${pick(lang, 'Por ejemplo', 'For example')}: ${v.default}` : pick(lang, 'Nuevo valor', 'New value')}
+                            value={draft[v.name] ?? ''}
+                            disabled={!view.available}
+                            onChange={(e) => setDraft((d) => ({ ...d, [v.name]: e.target.value }))}
+                          />
+                          <button disabled={act.busy || !(draft[v.name] ?? '') || !view.available} onClick={() => act.run(async () => { await system.setSecret(v.name, draft[v.name]); setDraft((d) => ({ ...d, [v.name]: '' })); hide(v.name); reload(); return pick(lang, 'Guardado.', 'Saved.') })}>{pick(lang, 'Guardar', 'Save')}</button>
+                          {v.canGenerate && view.available && (
+                            <button className="ghost" disabled={act.busy} onClick={() => act.run(async () => { const r = await system.generateSecret(v.name); setShown((s) => ({ ...s, [v.name]: r.value })); reload() })}>{pick(lang, 'Generar', 'Generate')}</button>
+                          )}
+                          {v.set && <button className="ghost" disabled={act.busy} onClick={() => reveal(v.name)}>{pick(lang, 'Mostrar', 'Show')}</button>}
+                          {v.source === 'stored' && view.available && <button className="ghost danger" disabled={act.busy} onClick={() => act.run(async () => { await system.deleteSecret(v.name); hide(v.name); reload() })}>{pick(lang, 'Borrar', 'Delete')}</button>}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
             )}
-          </li>
+          </details>
         ))}
-      </ul>
-      {shown && (
-        <div className="banner" role="status">
-          <b>{pick(lang, 'Contraseña generada para ', 'Generated password for ')}{shown.name}</b>
-          <p>{pick(lang, 'Cópiala ahora: no se vuelve a mostrar.', 'Copy it now: it is not shown again.')}</p>
-          <code className="secret-once">{shown.value}</code>
-          <div className="actions">
-            <button onClick={() => { try { void navigator.clipboard.writeText(shown.value) } catch { /* the value is on screen anyway */ } }}>{pick(lang, 'Copiar', 'Copy')}</button>
-            <button className="ghost" onClick={() => setShown(null)}>{pick(lang, 'Ya la tengo', 'I have it')}</button>
-          </div>
-        </div>
-      )}
+      </div>
       <Status error={act.error} done={act.done} />
     </section>
   )
