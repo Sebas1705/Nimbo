@@ -8,24 +8,21 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# 2. Build the jar (UI, labs and stacks are packed inside it)
-FROM eclipse-temurin:21-jdk AS build
-ARG NIMBO_VERSION=0.1.0
+# 2. Build the Go binary (the UI, labs and stacks are embedded in it). No cgo: the headless mode needs no window.
+FROM golang:1.25 AS build
+ARG NIMBO_VERSION=dev
 WORKDIR /src
-COPY gradlew settings.gradle.kts build.gradle.kts ./
-COPY gradle gradle
-# The wrapper may have been checked out with Windows line endings.
-RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
-COPY backend backend
-COPY labs labs
-COPY nimbo.yml ./
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
 COPY --from=web /src/web/dist web/dist
-RUN ./gradlew --no-daemon --console=plain -PnimboVersion=${NIMBO_VERSION} :backend:buildFatJar -x test
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${NIMBO_VERSION}" -o /out/nimbo .
 
 # 3. Run it. Nimbo drives the host's Docker, so the image carries only the docker CLI.
-FROM eclipse-temurin:21-jre
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
 COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=build /src/backend/build/libs/nimbo-*.jar /app/nimbo.jar
+COPY --from=build /out/nimbo /usr/local/bin/nimbo
 
 # Inside a container Nimbo must listen on all interfaces so the published port reaches it, and the
 # emulators it starts are published on the host, not on this container. Publish the port on loopback only.
@@ -39,4 +36,4 @@ LABEL org.opencontainers.image.title="Nimbo" \
       org.opencontainers.image.description="Your local cloud, no bill: a control center for local cloud emulators" \
       org.opencontainers.image.source="https://github.com/Sebas1705/Nimbo" \
       org.opencontainers.image.licenses="MIT"
-ENTRYPOINT ["java", "-jar", "/app/nimbo.jar"]
+ENTRYPOINT ["nimbo", "serve"]

@@ -9,17 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :backend:test --console=plain
-
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -35,54 +24,66 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
 
-  package:
+  # The Go code embeds web/dist, so it is built first.
+  go:
     runs-on: ubuntu-latest
-    needs: [backend, web]
+    needs: web
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-go@v5
         with:
-          distribution: temurin
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: actions/setup-node@v4
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: cd web && npm ci && npm run build
-      - run: ./gradlew :backend:buildFatJar --console=plain
-      - name: The jar starts and serves the UI
+          name: web-dist
+          path: web/dist
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test ./...
+      - name: The headless binary starts and serves the UI
         run: |
-          java -jar backend/build/libs/nimbo-*.jar &
-          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
-          curl -sf localhost:8080/ | grep -q "<title>Nimbo</title>"
-          curl -sf localhost:8080/api/labs | grep -q first-bucket
+          CGO_ENABLED=0 go build -trimpath -ldflags "-X main.version=$(tr -d '[:space:]' < VERSION)" -o nimbo-linux-amd64 .
+          NIMBO_DATA_DIR=$(mktemp -d) ./nimbo-linux-amd64 serve --port 18080 &
+          for i in $(seq 1 30); do curl -sf localhost:18080/api/health && break; sleep 1; done
+          curl -sf localhost:18080/ | grep -q "<title>Nimbo</title>"
+          curl -sf localhost:18080/api/labs | grep -q first-bucket
           kill %1
 
   desktop:
-    runs-on: windows-latest
-    needs: [backend, web]
+    runs-on: windows-2022
+    needs: web
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-go@v5
         with:
-          distribution: temurin
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: actions/setup-node@v4
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: cd web && npm ci && npm run build
+          name: web-dist
+          path: web/dist
+      - name: Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
+      - name: Build the app
         shell: bash
-      - run: ./gradlew :backend:zipDesktop --console=plain
-        shell: bash
+        run: wails build -s -platform windows/amd64 -ldflags "-X main.version=$(tr -d '[:space:]' < VERSION)" -o Nimbo.exe
       - name: The portable app runs
         shell: pwsh
         run: |
-          $zip = (Get-ChildItem backend/build/distributions/Nimbo-*-windows-x64.zip).FullName
-          powershell -NoProfile -File packaging/smoke-test.ps1 -Zip $zip
+          New-Item -ItemType Directory -Force dist/Nimbo | Out-Null
+          Copy-Item build/bin/Nimbo.exe, LICENSE dist/Nimbo/
+          Compress-Archive -Path dist/Nimbo -DestinationPath dist/Nimbo-ci-windows-x64.zip
+          powershell -NoProfile -File packaging/smoke-test.ps1 -Zip dist/Nimbo-ci-windows-x64.zip
+          exit $LASTEXITCODE
+      - name: The installer builds
+        shell: pwsh
+        run: |
+          $v = (Get-Content VERSION).Trim()
+          powershell -NoProfile -File packaging/build-msi.ps1 -Version $v -Exe build/bin/Nimbo.exe -Out dist/Nimbo.msi
           exit $LASTEXITCODE
