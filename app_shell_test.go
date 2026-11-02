@@ -16,6 +16,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/Sebas1705/Nimbo/internal/nimbo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -422,5 +423,31 @@ func TestDockerfileRunsTheHeadlessServer(t *testing.T) {
 		if !strings.Contains(d, want) {
 			t.Errorf("Dockerfile lacks %s", want)
 		}
+	}
+}
+
+// The window's requests carry Origin http://wails.localhost on every POST/PUT/DELETE. They must pass the cross-site
+// guard of the real server, and a page from anywhere else must not, through the very same wrapper.
+func TestTheWindowCanChangeThingsAndAForeignPageCannot(t *testing.T) {
+	api := nimbo.NewServer(nimbo.Config{HostEnv: map[string]string{}}, nimbo.Deps{Data: nimbo.NewAppData(nil, nil)})
+	h := desktopAPI(api)
+	do := func(method, origin string) int {
+		req := httptest.NewRequest(method, "http://wails.localhost/api/settings", strings.NewReader(`{"theme":"dark"}`))
+		req.Header.Set("Content-Type", "application/json")
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if got := do("PUT", "http://wails.localhost"); got != 200 {
+		t.Errorf("the window itself: %d, want 200", got)
+	}
+	if got := do("PUT", "https://evil.example"); got != 403 {
+		t.Errorf("a foreign page: %d, want 403", got)
+	}
+	if got := do("PUT", ""); got != 200 {
+		t.Errorf("no Origin (a script): %d, want 200", got)
 	}
 }
