@@ -42,15 +42,6 @@ type SuiteRefDto struct {
 	Name  string `json:"name"`
 }
 
-// FidelityChange is what changed in one suite against its previous run. It is the shape of the data layer's
-// FidelityChange; the integrator's fidelityHistory adapter produces it.
-type FidelityChange struct {
-	Suite      string `json:"suite"`
-	From       string `json:"from"`
-	To         string `json:"to"`
-	Regression bool   `json:"regression"`
-}
-
 type FidelityStateDto struct {
 	Running   bool             `json:"running"`
 	UpdatedAt *int64           `json:"updatedAt"`

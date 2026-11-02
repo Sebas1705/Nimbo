@@ -247,7 +247,14 @@ func buildAPI(env map[string]string, home, distribution, host string, port int) 
 	cfg.Distribution = distribution
 	cfg.Host = host
 	cfg.Port = port
-	h := nimbo.NewServer(cfg, nimbo.Deps{Defaults: bundledDefaults})
-	c, _ := h.(io.Closer)
-	return h, c
+	return nimbo.Assemble(cfg, nimbo.AssembleOptions{Bundled: bundledDefaults, Env: env, Home: home, Quit: quitApp})
+}
+
+// quitApp is what the updater calls once the installer of an update has been launched: it waits for Nimbo's process
+// to end, so leave a moment for the answer to reach the page first.
+func quitApp() {
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		os.Exit(0)
+	}()
 }
