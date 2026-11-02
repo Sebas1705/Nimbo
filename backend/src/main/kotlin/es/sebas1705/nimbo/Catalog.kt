@@ -1,6 +1,31 @@
 package es.sebas1705.nimbo
 
 object Catalog {
+    /**
+     * What each provider needs to keep its data between runs, taken from its own documentation. Providers that are
+     * absent have nothing to keep: Toxiproxy is stateless and Floci OCI documents no persistence.
+     */
+    private val persistence: Map<String, PersistSpec> = mapOf(
+        "floci-aws" to PersistSpec("/app/data", env = mapOf("FLOCI_STORAGE_MODE" to "hybrid", "FLOCI_STORAGE_PERSISTENT_PATH" to "/app/data")),
+        "floci-azure" to PersistSpec("/app/data", env = mapOf("FLOCI_AZ_STORAGE_MODE" to "hybrid", "FLOCI_AZ_STORAGE_PATH" to "/app/data")),
+        "floci-gcp" to PersistSpec("/app/data", env = mapOf("FLOCI_GCP_STORAGE_MODE" to "hybrid", "FLOCI_GCP_STORAGE_PERSISTENT_PATH" to "/app/data")),
+        "azurite" to PersistSpec("/data"),
+        "minio" to PersistSpec("/data", user = "0:0"),
+        "redpanda" to PersistSpec("/var/lib/redpanda/data"),
+        // The official image declares this folder as a volume; naming it makes the data survive removing the container.
+        "postgres" to PersistSpec("/var/lib/postgresql/data"),
+        "redis" to PersistSpec("/data", command = listOf("redis-server", "--appendonly", "yes")),
+        "k3s" to PersistSpec("/var/lib/rancher/k3s"),
+        "jaeger" to PersistSpec(
+            "/badger",
+            env = mapOf(
+                "SPAN_STORAGE_TYPE" to "badger", "BADGER_EPHEMERAL" to "false",
+                "BADGER_DIRECTORY_VALUE" to "/badger/data", "BADGER_DIRECTORY_KEY" to "/badger/key",
+            ),
+            user = "0:0",
+        ),
+    )
+
     val providers: List<ProviderDef> = listOf(
         ProviderDef(
             id = "floci-aws",
@@ -73,7 +98,8 @@ object Catalog {
             name = "MinIO",
             cloud = Cloud.OTHER,
             description = "S3-compatible object storage, handy as a Terraform state backend.",
-            image = "minio/minio",
+            // MinIO stopped publishing community images (Docker Hub and quay.io no longer serve them); Chainguard rebuilds them from source.
+            image = "cgr.dev/chainguard/minio",
             ports = listOf(9000, 9001),
             command = listOf("server", "/data", "--console-address", ":9001"),
             secretEnv = mapOf(
@@ -151,7 +177,7 @@ object Catalog {
             ports = listOf(6379),
             endpoints = mapOf("REDIS_URL" to "redis://localhost:6379"),
         ),
-    )
+    ).map { it.copy(persist = persistence[it.id]) }
 
     fun find(id: String): ProviderDef? = providers.firstOrNull { it.id == id }
 }

@@ -474,3 +474,40 @@ code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; font-siz
   .stage { padding-top: 24px; }
   .panel, .guide-panel { width: 100%; }
 }
+
+/* ---- System screens ---------------------------------------------------------------------------------------------- */
+.sys { display: grid; gap: 16px; }
+.sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.sys-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: grid; gap: 10px; align-content: start; box-shadow: var(--shadow); }
+.sys-card h3 { font: 650 16px/1.25 var(--font-display); letter-spacing: -0.01em; }
+.sys-card.stat .big { font: 700 28px/1 var(--font-display); }
+.sys-card.stat small, .sys-card small { color: var(--muted); }
+.sys-card.highlight { border-color: color-mix(in srgb, var(--led) 55%, var(--line)); }
+.sys-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.sys-table th { text-align: left; color: var(--muted); font-weight: 600; padding: 4px 8px 6px 0; }
+.sys-table td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+.journal { list-style: none; display: grid; gap: 0; margin: 0; padding: 0; }
+.journal li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.journal li:first-child { border-top: 0; }
+.journal time, .journal b { color: var(--muted); font-weight: 500; white-space: nowrap; }
+.journal li.worse b { color: var(--bad); font-weight: 650; }
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 64px; }
+.spark i { flex: 1; min-width: 3px; max-width: 14px; background: var(--led); border-radius: 2px 2px 0 0; opacity: 0.85; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.kv label, .secrets label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.secrets { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.secrets li { display: grid; grid-template-columns: minmax(180px, 1fr) auto; gap: 6px 14px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
+.secrets li:first-child { border-top: 0; padding-top: 0; }
+.secrets li > div:first-child { display: grid; gap: 2px; }
+.secrets .actions { grid-column: 1 / -1; }
+.mask { letter-spacing: 0.1em; color: var(--muted); }
+.secret-once { display: block; padding: 8px 10px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 6px; word-break: break-all; user-select: all; }
+.keep { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; }
+.keep label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.keep small { color: var(--muted); }
+.ok-note { color: var(--led); font-size: 14px; }
+.okc { color: var(--led); }
+.notes { white-space: pre-wrap; max-height: 220px; overflow: auto; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; margin: 0; }
+.actions.wide input { flex: 1 1 220px; min-width: 0; }
+.folder { margin-left: 6px; }
+.backup { display: grid; gap: 10px; padding-top: 6px; border-top: 1px solid var(--line); }

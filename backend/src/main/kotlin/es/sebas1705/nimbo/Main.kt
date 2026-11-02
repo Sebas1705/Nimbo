@@ -6,6 +6,7 @@ import io.ktor.server.netty.Netty
 import io.ktor.server.netty.NettyApplicationEngine
 import io.ktor.server.engine.EmbeddedServer
 import org.slf4j.LoggerFactory
+import java.io.File
 
 /**
  * Wires every service to the emulators. Nimbo reaches them at [NimboConfig.emulatorHost], which is
@@ -18,6 +19,10 @@ fun Application.nimboFromConfig(
     shell: Shell = ProcessShell(),
     stacks: StackCatalog = StackCatalog.load(),
     labs: LabCatalog = LabCatalog.load(),
+    data: AppData = AppData.onDisk(dataDir(System.getenv(), System.getProperty("user.home"))),
+    secrets: SecretStore = defaultSecretStore(data),
+    updater: Updater = defaultUpdater(config, data),
+    images: Images = defaultImages(config, data),
 ) {
     val h = config.emulatorHost
     nimboModule(
@@ -28,7 +33,34 @@ fun Application.nimboFromConfig(
         labs = labs,
         kube = Kube(shell),
         traces = Traces(http, query = "http://$h:16686", otlp = "http://$h:4318"),
+        data = data,
+        secrets = secrets,
+        updater = updater,
+        images = images,
     )
+}
+
+internal fun defaultImages(config: NimboConfig, data: AppData): Images {
+    // For the Windows app the launcher sits in the install folder; an `images` folder beside it is where a kit is unpacked.
+    val appDir = if (config.distribution == "desktop") ProcessHandle.current().info().command().orElse(null)?.let { File(it).parentFile } else null
+    return Images(ProcessExec(System.getenv("NIMBO_DOCKER_BIN") ?: "docker"), { Images.searchFolders(System.getenv(), data, appDir) }, data)
+}
+
+internal fun defaultUpdater(config: NimboConfig, data: AppData): Updater {
+    val folder = data.store.location ?: File(System.getProperty("java.io.tmpdir"), "nimbo-data")
+    return Updater(
+        config, data, JavaDownloader(), folder,
+        installer = if (config.distribution == "desktop") WindowsInstaller(File(folder, "updates")) else Installer { _, _, _ -> throw UpdateError("This installation cannot update itself") },
+        // The installer waits for this process to end, so leave a moment for the answer to reach the page first.
+        quit = { Thread { Thread.sleep(1500); kotlin.system.exitProcess(0) }.apply { isDaemon = true }.start() },
+    )
+}
+
+/** Passwords are protected by Windows (DPAPI) where that exists; elsewhere Nimbo says so instead of storing them in clear. */
+internal fun defaultSecretStore(data: AppData): SecretStore {
+    val windows = System.getProperty("os.name").orEmpty().startsWith("Windows")
+    return if (windows && data.store.location != null) DpapiSecretStore(data.store, ProcessShell("powershell.exe"))
+    else UnavailableSecretStore("Secrets can only be protected on Windows; elsewhere use environment variables or a .env file.")
 }
 
 /** The real server, shared by the command line entry point and the desktop one. */

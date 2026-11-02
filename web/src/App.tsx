@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ApiError, api, countRunning, failures, type DockerStatus, type Provider, type Stack, type StackList } from './api'
+import { ApiError, api, countRunning, failures, system, updates as updatesApi, type DockerStatus, type Provider, type Settings, type Stack, type StackList, type UpdateStatus } from './api'
 import { Logo, TokenGate } from './Brand'
 import { ChaosView } from './Chaos'
 import { FidelityView } from './Fidelity'
 import { GuideView } from './Guide'
 import { HelpBox } from './Help'
-import { InfraView } from './Infra'
+import { InfraView, type ProviderAction } from './Infra'
 import { InspectorView } from './Inspector'
 import { KubeView } from './Kube'
 import { LabsView } from './Labs'
@@ -16,6 +16,8 @@ import { guideFor } from './guides'
 import { detectLang, translate, type Key, type Lang } from './i18n'
 import { NAV, groupOf, itemOf, startTab, type TabId } from './nav'
 import { applyTheme, loadTheme, nextTheme, readPref, writePref, type Theme } from './prefs'
+import { ActivityView, OfflineView, SettingsView, UpdatesView } from './System'
+import { updateDot } from './systemLogic'
 
 function initialLang(): Lang {
   const saved = readPref('lang')
@@ -43,6 +45,8 @@ export function App() {
   const [firstTab, setFirstTab] = useState<TabId | null>(null)
   const [labFocus, setLabFocus] = useState<string | null>(null)
   const [version, setVersion] = useState<string | null>(null)
+  const [settings, setSettings] = useState<Settings | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -66,16 +70,62 @@ export function App() {
     return () => clearInterval(id)
   }, [refresh])
 
+  // Settings live in the data folder; the browser copy only makes the first paint right. The server wins once it has an answer.
+  useEffect(() => {
+    system
+      .settings()
+      .then(async (s) => {
+        setSettings(s)
+        const localLang = readPref('lang')
+        const localTheme = loadTheme()
+        if (s.lang) setLang(s.lang)
+        else if (localLang === 'es' || localLang === 'en') await system.saveSettings({ lang: localLang }).then(setSettings)
+        if (s.theme !== 'auto') setTheme(s.theme)
+        else if (localTheme !== 'auto') await system.saveSettings({ theme: localTheme }).then(setSettings)
+      })
+      .catch(() => {})
+  }, [])
+
+  // One automatic look for a new version when the app opens. The server decides whether it is due (mode, once a day).
+  useEffect(() => {
+    updatesApi
+      .status()
+      .then((s) => {
+        setUpdateStatus(s)
+        if (s.mode === 'auto') updatesApi.check(false).then(setUpdateStatus).catch(() => {})
+      })
+      .catch(() => {})
+  }, [])
+
+  const changeSettings = async (patch: Partial<Pick<Settings, 'lang' | 'theme' | 'updateMode'>>) => {
+    const next = await system.saveSettings(patch)
+    setSettings(next)
+    if (patch.lang) { setLang(patch.lang); writePref('lang', patch.lang) }
+    if (patch.theme) { setTheme(patch.theme); writePref('theme', patch.theme) }
+    if (patch.updateMode) updatesApi.status().then(setUpdateStatus).catch(() => {})
+  }
+
   useEffect(() => applyTheme(theme), [theme])
   useEffect(() => {
     document.documentElement.lang = lang
   }, [lang])
 
-  const act = async (p: Provider, action: 'start' | 'stop' | 'remove') => {
+  const act = async (p: Provider, action: ProviderAction) => {
+    if (action === 'deleteData') {
+      const ok = window.confirm(
+        lang === 'es'
+          ? `Se borrarán para siempre los datos guardados de ${p.name}. ¿Continuar?`
+          : `The saved data of ${p.name} will be deleted for good. Continue?`,
+      )
+      if (!ok) return
+    }
     setBusy((b) => new Set(b).add(p.id))
     setErrors((e) => ({ ...e, [p.id]: '' }))
     try {
-      await api[action](p.id)
+      if (action === 'persistOn') await api.setPersist(p.id, true)
+      else if (action === 'persistOff') await api.setPersist(p.id, false)
+      else if (action === 'deleteData') await api.deleteData(p.id)
+      else await api[action](p.id)
     } catch (e) {
       setErrors((prev) => ({ ...prev, [p.id]: e instanceof Error ? e.message : String(e) }))
     } finally {
@@ -144,11 +194,13 @@ export function App() {
   const setLanguage = (next: Lang) => {
     setLang(next)
     writePref('lang', next)
+    system.saveSettings({ lang: next }).then(setSettings).catch(() => {})
   }
   const cycleTheme = () => {
     const next = nextTheme(theme)
     setTheme(next)
     writePref('theme', next)
+    system.saveSettings({ theme: next }).then(setSettings).catch(() => {})
   }
 
   return (
@@ -174,6 +226,7 @@ export function App() {
                 <button key={i.id} className={current === i.id ? 'nav-item on' : 'nav-item'} aria-current={current === i.id ? 'page' : undefined} onClick={() => go(i.id)}>
                   {t(i.label)}
                   {i.id === 'infra' && running > 0 && <span className="count">{running}</span>}
+                  {i.id === 'updates' && updateDot(updateStatus) && <span className="count" title={t('updateAvailable')} aria-label={t('updateAvailable')}>●</span>}
                 </button>
               ))}
             </div>
@@ -260,6 +313,10 @@ export function App() {
         {current === 'chaos' && <ChaosView t={t} />}
         {current === 'labs' && <LabsView t={t} lang={lang} focus={labFocus} />}
         {current === 'fidelity' && <FidelityView t={t} />}
+        {current === 'activity' && <ActivityView t={t} lang={lang} />}
+        {current === 'settings' && <SettingsView t={t} lang={lang} providers={providers} settings={settings} onSettings={changeSettings} onChanged={refresh} />}
+        {current === 'updates' && <UpdatesView t={t} lang={lang} status={updateStatus} onStatus={setUpdateStatus} />}
+        {current === 'offline' && <OfflineView t={t} lang={lang} />}
       </main>
 
       {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}

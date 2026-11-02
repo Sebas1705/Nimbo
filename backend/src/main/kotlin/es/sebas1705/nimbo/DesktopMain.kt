@@ -37,7 +37,7 @@ internal fun launchDesktop() {
     }
 
     val port = (plan as LaunchPlan.Start).port
-    val server = buildServer(config.copy(port = port, host = "127.0.0.1"))
+    val server = buildServer(config.copy(port = port, host = "127.0.0.1", distribution = "desktop"))
     server.start(wait = false)
     val url = "http://127.0.0.1:$port"
     println("Nimbo ${config.version ?: "dev"} listening on $url")

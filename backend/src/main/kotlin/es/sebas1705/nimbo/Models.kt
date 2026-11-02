@@ -4,6 +4,17 @@ import kotlinx.serialization.Serializable
 
 enum class Cloud { AWS, AZURE, GCP, OCI, OTHER }
 
+/** How a provider keeps its data between runs: a named Docker volume mounted at [mountPath]. */
+data class PersistSpec(
+    val mountPath: String,
+    /** Environment that only makes sense when persisting (an emulator storage mode, say). */
+    val env: Map<String, String> = emptyMap(),
+    /** Replaces the container command when persisting; null keeps the image default. */
+    val command: List<String>? = null,
+    /** Images that run as an unprivileged user cannot write into a fresh volume (owned by root); this runs them as that user. */
+    val user: String? = null,
+)
+
 /** A container Nimbo knows how to run. Secrets are never stored here, only the name of the env var that holds them. */
 data class ProviderDef(
     val id: String,
@@ -21,6 +32,8 @@ data class ProviderDef(
     val secretEnv: Map<String, String> = emptyMap(),
     /** Variables a client should set to talk to this provider. */
     val endpoints: Map<String, String> = emptyMap(),
+    /** Null when the provider has nothing worth keeping (a proxy, an emulator without persistence). */
+    val persist: PersistSpec? = null,
 )
 
 enum class RunState { NOT_CREATED, RUNNING, STOPPED, ERROR }
@@ -35,6 +48,12 @@ data class ProviderDto(
     val ports: List<Int>,
     val state: String,
     val detail: String? = null,
+    /** Can this provider keep its data in a volume? */
+    val persistable: Boolean = false,
+    /** Is that switched on? */
+    val persist: Boolean = false,
+    /** Is there saved data in a volume right now? */
+    val hasData: Boolean = false,
 )
 
 @Serializable
