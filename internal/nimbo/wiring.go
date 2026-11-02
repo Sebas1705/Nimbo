@@ -33,7 +33,8 @@ func Assemble(cfg Config, opts AssembleOptions) (http.Handler, io.Closer) {
 	}
 	data := AppDataOnDisk(dataDir)
 	secrets := DefaultSecretStore(data)
-	runtime := NewCliContainerRuntime(ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")})
+	// The page asks the same few things every few seconds: share one run of docker between those requests.
+	runtime := NewCachedRuntime(NewCliContainerRuntime(ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")}), DefaultCacheTTL)
 	shell := ProcessShell{Bin: orDefault(cfg.DockerBin, "docker")}
 	// The registry of own images comes first: it publishes them as emulators, and a stack in nimbo.yml may name one.
 	registryImages := NewImageRegistry(data.Store, data, runtime, secrets, env)
