@@ -7,6 +7,12 @@
 
 .notice-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 
+/* Inspector and Traces: the lists of things keep the old column look. A rule written for the stack picker in styles.css
+   (.pick, centred and bordered) also reached these lists; this puts them back to full width, left aligned. */
+ul.pick { align-items: stretch; gap: 3px; padding: 6px; cursor: default; }
+ul.pick:empty { display: none !important; }
+ul.pick > li { width: 100%; }
+
 /* Inspector: the project field of Pub/Sub */
 .insp-project { max-width: 320px; }
 
@@ -21,7 +27,9 @@
 .chaos-wrap select { width: 100%; }
 .chaos-wrap .sys-card h3 { font-size: 17px; }
 .chaos-wrap .params { display: grid; gap: 8px; }
-.chaos-wrap .params input[type='number'] { width: 100%; }
+.chaos-wrap .params .rf { grid-template-columns: 1fr auto; align-items: center; column-gap: 10px; }
+.chaos-wrap .params .rf > small { grid-column: 1 / -1; }
+.chaos-wrap .params input[type='number'] { width: 110px; }
 
 /* Infra: stacks of your own */
 .presets .sys-card > p { color: var(--ink-2); font-size: 14px; }
