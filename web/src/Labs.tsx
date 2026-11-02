@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { labProgress, labs, system, type Lab, type LabList, type LabVerify } from './api'
 import type { Key, Lang } from './i18n'
+import './screens.css'
 import { idsToImport } from './systemLogic'
+import { Card, Feedback, Notice, Pill, useAction, useLoad } from './ui'
 
 type T = (k: Key) => string
 
 /** `focus` opens a lab straight away, for the links on the guide page. */
 export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: string | null }) {
-  const [list, setList] = useState<LabList | null>(null)
   const [selected, setSelected] = useState<string | null>(focus)
   const [done, setDone] = useState<Set<string>>(() => labProgress.load())
-  const [error, setError] = useState('')
+  const { data: list, error } = useLoad<LabList>(labs.list)
 
   // Progress lives in the data folder. What an older version kept in this browser is handed over once, then the browser
   // copy is only a cache for the first paint.
@@ -29,13 +30,6 @@ export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: 
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    labs
-      .list()
-      .then(setList)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
-
   const markDone = (id: string) =>
     setDone((prev) => {
       const next = new Set(prev).add(id)
@@ -43,7 +37,7 @@ export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: 
       return next
     })
 
-  if (!list) return <p className="muted">{error || '…'}</p>
+  if (!list) return <Feedback working={error ? '' : t('loading')} error={error} />
   const lab = list.labs.find((l) => l.id === selected) ?? null
 
   return (
@@ -55,14 +49,13 @@ export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: 
       </div>
 
       {list.problems.length > 0 && (
-        <div className="banner" role="alert">
-          <b>{t('labsProblems')}</b>
+        <Notice title={t('labsProblems')}>
           <ul>
             {list.problems.map((p) => (
               <li key={p}>{p}</li>
             ))}
           </ul>
-        </div>
+        </Notice>
       )}
 
       <div className="lab-layout">
@@ -90,28 +83,17 @@ export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: 
 
 function LabDetail({ lab, t, lang, completed, onPassed }: { lab: Lab; t: T; lang: Lang; completed: boolean; onPassed: () => void }) {
   const [result, setResult] = useState<LabVerify | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const action = useAction()
 
-  const verify = async () => {
-    setBusy(true)
-    setError('')
-    try {
+  const verify = () =>
+    action.run('', async () => {
       const r = await labs.verify(lab.id)
       setResult(r)
       if (r.passed) onPassed()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
+    })
 
   return (
-    <article className="lab-detail">
-      <h3>
-        {lab.title[lang]} {completed && <span className="lab-done">✓</span>}
-      </h3>
+    <Card title={lab.title[lang]} actions={completed ? <Pill tone="ok">{t('done')}</Pill> : undefined}>
       <p className="desc">{lab.summary[lang]}</p>
       {lab.stack && (
         <p className="hint">
@@ -162,13 +144,13 @@ function LabDetail({ lab, t, lang, completed, onPassed }: { lab: Lab; t: T; lang
         })}
       </ul>
 
-      {error && <p className="err">{error}</p>}
+      <Feedback error={action.error} />
       <div className="actions">
-        <button className="primary" disabled={busy} onClick={verify}>
-          {busy ? '…' : t('verify')}
+        <button className="primary" disabled={action.busy} onClick={verify}>
+          {action.busy ? '…' : t('verify')}
         </button>
         {result && <span className={result.passed ? 'lab-ok' : 'muted'}>{result.passed ? t('labPassed') : t('labPending')}</span>}
       </div>
-    </article>
+    </Card>
   )
 }

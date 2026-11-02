@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { coverage, fidelity, type FitRef, type FitState, type FitSuite } from './api'
 import type { Key } from './i18n'
+import './screens.css'
+import { Feedback, Pill, useAction, useLoad, type Tone } from './ui'
 
 type T = (k: Key) => string
 
@@ -10,36 +12,28 @@ const CLOUDS: Array<{ id: string; name: string }> = [
   { id: 'gcp', name: 'Google Cloud' },
 ]
 
+const fitTone = (s: FitSuite['status'] | 'offline'): Tone => (s === 'full' ? 'ok' : s === 'partial' ? 'warn' : s === 'missing' ? 'bad' : 'idle')
+
 const MARK = { pass: '✓', fail: '✗', skipped: '–' } as const
 
 export function FidelityView({ t }: { t: T }) {
-  const [state, setState] = useState<FitState | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [error, setError] = useState('')
+  const loaded = useLoad(fidelity.state)
+  // A run answers with the new state, which is shown at once instead of waiting for another read.
+  const [ran, setRan] = useState<FitState | null>(null)
+  const [scope, setScope] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  const action = useAction()
+  const state = ran ?? loaded.data
 
-  const load = useCallback(() => {
-    fidelity
-      .state()
-      .then(setState)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
-
-  useEffect(load, [load])
-
-  const run = async (cloud?: string) => {
-    setBusy(cloud ?? 'all')
-    setError('')
-    try {
-      setState(await fidelity.run(cloud))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
+  const run = (cloud?: string) => {
+    setScope(cloud ?? 'all')
+    return action.run('', async () => {
+      setRan(await fidelity.run(cloud))
+    })
   }
+  const busy = action.busy ? scope : null
 
-  if (!state) return <p className="muted">{error || '…'}</p>
+  if (!state) return <Feedback working={loaded.error ? '' : t('loading')} error={loaded.error} />
 
   const byId = new Map(state.results.map((r) => [r.id, r]))
   const pct = coverage(state.results)
@@ -48,7 +42,7 @@ export function FidelityView({ t }: { t: T }) {
     <div className="fidelity">
       <div className="chaos-head">
         <div className="actions">
-          <button className="primary" disabled={busy !== null} onClick={() => run()}>
+          <button className="primary" disabled={action.busy} onClick={() => run()}>
             {busy === 'all' ? '…' : t('runAllChecks')}
           </button>
         </div>
@@ -56,22 +50,19 @@ export function FidelityView({ t }: { t: T }) {
 
       <div className="fit-summary">
         {(['full', 'partial', 'missing', 'offline'] as const).map((s) => (
-          <span key={s} className={`pill fit-${s}`}>
-            <i className="dot" />
+          <Pill key={s} tone={fitTone(s)}>
             {t(`fit_${s}` as Key)} · {state.summary[s] ?? 0}
-          </span>
+          </Pill>
         ))}
         {state.results.length > 0 && (
           <span className="chip">
             <b>{pct}%</b>&nbsp;{t('coverage')}
           </span>
         )}
-        <span className="muted small">
-          {state.updatedAt ? `${t('lastRun')}: ${new Date(state.updatedAt).toLocaleTimeString()}` : t('neverRun')}
-        </span>
+        <span className="muted small">{state.updatedAt ? `${t('lastRun')}: ${new Date(state.updatedAt).toLocaleTimeString()}` : t('neverRun')}</span>
       </div>
 
-      {error && <p className="err">{error}</p>}
+      <Feedback error={action.error || loaded.error} />
 
       {CLOUDS.map((cloud) => {
         const suites = state.catalog.filter((c) => c.cloud === cloud.id)
@@ -80,7 +71,7 @@ export function FidelityView({ t }: { t: T }) {
           <section key={cloud.id} className={`cloud cloud-${cloud.id}`}>
             <h2>{cloud.name}</h2>
             <div className="fit-actions">
-              <button className="ghost" disabled={busy !== null} onClick={() => run(cloud.id)}>
+              <button className="ghost" disabled={action.busy} onClick={() => run(cloud.id)}>
                 {busy === cloud.id ? '…' : `${t('runAllChecks')} · ${cloud.id.toUpperCase()}`}
               </button>
             </div>
@@ -116,10 +107,7 @@ function SuiteRow({
         <span className="fit-name">{refItem.name}</span>
         {result ? (
           <>
-            <span className={`pill fit-${result.status}`}>
-              <i className="dot" />
-              {t(`fit_${result.status}` as Key)}
-            </span>
+            <Pill tone={fitTone(result.status)}>{t(`fit_${result.status}` as Key)}</Pill>
             <small>
               {passed}/{result.steps.length} {t('stepsOk')} · {result.ms} ms
             </small>
