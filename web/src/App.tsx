@@ -309,6 +309,7 @@ export function App() {
             onPanel={(kind, provider) => setPanel({ kind, provider })}
             onExport={setExporting}
             onGuide={setGuideId}
+            onStacksChanged={refresh}
           />
         )}
         {current === 'inspector' && <InspectorView t={t} />}

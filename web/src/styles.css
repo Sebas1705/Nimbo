@@ -530,3 +530,14 @@ code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; font-siz
 .fmt-group .muted { font-size: 13px; margin: 2px 0 6px; }
 .fmt-options { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 6px 0; }
 .tab:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- Stacks of your own ------------------------------------------------------------------------------------------ */
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.stack-form { display: grid; gap: 10px; padding: 14px 16px; margin: 8px 0 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.stack-form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.stack-form fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.stack-form legend { font-size: 13px; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+.pick { display: flex !important; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text) !important; cursor: pointer; }
+.pick.on { border-color: var(--led); background: color-mix(in srgb, var(--led) 10%, var(--surface)); }
+.pick small { margin-left: auto; color: var(--muted); }

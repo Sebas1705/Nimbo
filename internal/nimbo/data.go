@@ -308,7 +308,7 @@ const (
 )
 
 // BackupFiles are the files a backup carries. Secrets are deliberately not among them.
-var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity}
+var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity, FileCustomStacks}
 
 // ---- Settings -----------------------------------------------------------------------------------------------------
 
@@ -837,6 +837,8 @@ func validateBackupFile(name, text string) error {
 	case FileFidelity:
 		target = &[]FidelityRunSummary{}
 		opener = '['
+	case FileCustomStacks:
+		target = &customStackFile{}
 	default:
 		return nil
 	}

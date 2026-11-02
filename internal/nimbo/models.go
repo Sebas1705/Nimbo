@@ -164,6 +164,8 @@ type StackDto struct {
 	State   string `json:"state"`
 	Running int    `json:"running"`
 	Total   int    `json:"total"`
+	// Custom stacks were made in the app and can be edited and deleted.
+	Custom bool `json:"custom"`
 }
 
 type StackListDto struct {

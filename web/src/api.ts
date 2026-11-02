@@ -38,6 +38,8 @@ export interface Stack {
   state: 'running' | 'partial' | 'stopped'
   running: number
   total: number
+  /** Made in the app: it can be edited and deleted. */
+  custom?: boolean
 }
 
 export interface StackList {
@@ -176,6 +178,8 @@ export const api = {
   logs: (id: string) => request<{ lines: string }>(`/api/providers/${id}/logs?tail=300`),
   env: (id: string, secrets = false) => request<{ dotenv: string }>(`/api/providers/${id}/env${secrets ? '?secrets=true' : ''}`),
   stacks: () => request<StackList>('/api/stacks'),
+  saveStack: (id: string, description: string, providers: string[]) => request<Stack>(`/api/stacks/${id}`, json({ description, providers }, 'PUT')),
+  deleteStack: (id: string) => request<void>(`/api/stacks/${id}`, { method: 'DELETE' }),
   stackUp: (id: string) => request<StackAction>(`/api/stacks/${id}/up`, { method: 'POST' }),
   stackDown: (id: string) => request<StackAction>(`/api/stacks/${id}/down`, { method: 'POST' }),
   stackExport: (id: string, format: ExportFormat, o: { chaos?: boolean; persist?: boolean; secrets?: boolean } = {}) =>

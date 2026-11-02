@@ -493,7 +493,8 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
     points: [
       t('Un stack es un grupo de proveedores que se arrancan juntos. Un proveedor es un contenedor: un emulador, una base de datos, un clúster.', 'A stack is a group of providers started together. A provider is one container: an emulator, a database, a cluster.'),
       t('Pulsa "Guía" en cualquier proveedor para ver dónde escucha, qué comandos usar y qué límites tiene.', 'Press "Guide" on any provider to see where it listens, which commands to use and what its limits are.'),
-      t('"Exportar" en un stack genera las variables de entorno, el override de OpenTofu o el perfil del AWS CLI para conectar tu código.', '"Export" on a stack generates the environment variables, the OpenTofu override or the AWS CLI profile to connect your code.'),
+      t('"Exportar" en un stack escribe archivos de configuración ya rellenos: un docker-compose.yml con su .env para levantarlo sin Nimbo, y ficheros para conectar tu aplicación (variables, Spring Boot, .NET, OpenTofu, AWS CLI).', '"Export" on a stack writes configuration files already filled in: a docker-compose.yml with its .env to run it without Nimbo, and files to connect your application (variables, Spring Boot, .NET, OpenTofu, AWS CLI).'),
+      t('"+ Crear un stack" te deja elegir los emuladores que quieres levantar juntos y guardarlos con un nombre. Los stacks propios se pueden editar y borrar; los que vienen con Nimbo no.', '"+ Create a stack" lets you pick the emulators you want to bring up together and save them under a name. Your own stacks can be edited and deleted; the ones that come with Nimbo cannot.'),
     ],
   },
   inspector: {

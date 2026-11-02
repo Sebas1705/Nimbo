@@ -231,6 +231,8 @@ type StackRoutes struct {
 
 func (s *StackRoutes) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/stacks", Handle(s.list))
+	mux.HandleFunc("PUT /api/stacks/{id}", Handle(s.save))
+	mux.HandleFunc("DELETE /api/stacks/{id}", Handle(s.remove))
 	mux.HandleFunc("POST /api/stacks/{id}/up", Handle(s.up))
 	mux.HandleFunc("POST /api/stacks/{id}/down", Handle(s.down))
 	mux.HandleFunc("GET /api/stacks/{id}/export", Handle(s.export))
@@ -255,11 +257,12 @@ func coreStackDto(st StackDef, live map[string]ContainerInfo) StackDto {
 
 func (s *StackRoutes) stack(r *http.Request) (StackDef, error) {
 	id := Param(r, "id")
-	st := s.Stacks.Find(id)
-	if st == nil {
-		return StackDef{}, UnknownTarget{"Unknown stack '" + id + "'"}
+	for _, st := range s.allStacks() {
+		if st.ID == id {
+			return st, nil
+		}
 	}
-	return *st, nil
+	return StackDef{}, UnknownTarget{"Unknown stack '" + id + "'"}
 }
 
 func coreStepResult(id string, err error) StepResultDto {
@@ -274,9 +277,13 @@ func (s *StackRoutes) list(w http.ResponseWriter, r *http.Request) error {
 	if s.Runtime.Status(r.Context()).Available {
 		live = s.Runtime.Containers(r.Context())
 	}
-	stacks := make([]StackDto, 0, len(s.Stacks.Stacks))
-	for _, st := range s.Stacks.Stacks {
-		stacks = append(stacks, coreStackDto(st, live))
+	mine := s.custom()
+	all := s.allStacks()
+	stacks := make([]StackDto, 0, len(all))
+	for _, st := range all {
+		dto := coreStackDto(st, live)
+		dto.Custom = mine.has(st.ID)
+		stacks = append(stacks, dto)
 	}
 	problems := s.Stacks.Problems
 	if problems == nil {
