@@ -1,0 +1,18 @@
+/* Styles of the shared components (web/src/ui). The old per-screen rules they replace stay in styles.css until the
+   screens that used them are migrated. */
+
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.card-head h3 { margin: 0; }
+.fact { display: contents; }
+
+.notice { display: grid; gap: 4px; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid; font-size: 13.5px; }
+.notice-warn { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.notice-bad { background: color-mix(in srgb, var(--bad) 10%, var(--surface)); border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+.notice-ok { background: color-mix(in srgb, var(--led) 10%, var(--surface)); border-color: color-mix(in srgb, var(--led) 45%, var(--line)); }
+
+/* A risky button turns into its own question, inline, with the same height as the buttons around it. */
+.confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border: 1px solid color-mix(in srgb, var(--bad) 55%, var(--line)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); font-size: 13px; }
+.confirm > span { color: var(--ink); }
+.confirm button { min-height: var(--ctl-sm); padding: 0 11px; font-size: 12.5px; }
+button.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 650; }
+button.danger-solid:hover:not(:disabled) { filter: brightness(0.92); border-color: var(--bad); }
