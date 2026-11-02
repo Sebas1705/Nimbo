@@ -555,7 +555,7 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
     points: [
       t('Nimbo solo habla con github.com/Sebas1705/Nimbo, como mucho una vez al día en modo automático y nunca en modo manual. No descarga ni instala nada sin que lo confirmes.', 'Nimbo only talks to github.com/Sebas1705/Nimbo, at most once a day in automatic mode and never in manual mode. It downloads and installs nothing without your confirmation.'),
       t('Cada descarga se comprueba con el SHA256SUMS de la versión y se borra si no coincide. Un instalador importado desde un archivo sin comprobación se marca como "sin verificar".', 'Every download is checked against the release\'s SHA256SUMS and deleted if it does not match. An installer imported from a file with no checksum is marked "not verified".'),
-      t('Solo la app de Windows se instala sola. Con el jar tendrás el archivo nuevo; con Docker, el comando para actualizar la imagen.', 'Only the Windows app installs itself. With the jar you get the new file; with Docker, the command to update the image.'),
+      t('Solo la app de Windows se instala sola. Con el binario portable tendrás el archivo nuevo; con Docker, el comando para actualizar la imagen.', 'Only the Windows app installs itself. With the portable binary you get the new file; with Docker, the command to update the image.'),
     ],
   },
   offline: {

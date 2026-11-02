@@ -1,9 +1,10 @@
 # Smoke test of the portable Windows app.
-#   powershell -File packaging\smoke-test.ps1 -Zip backend\build\distributions\Nimbo-0.2.0-windows-x64.zip
+#   powershell -File packaging\smoke-test.ps1 -Zip dist\Nimbo-0.2.1-windows-x64.zip
 #
-# Unzips it somewhere temporary, starts Nimbo.exe without a window (NIMBO_HEADLESS=1) and checks what a user
-# relies on: it stays alive, serves the UI, the API and the bundled labs, a second launch reuses the running one
-# instead of starting another, and a port held by another program makes it pick a free one.
+# Unzips it somewhere temporary and runs `Nimbo.exe serve` (the headless mode: no window, no tray; the window
+# itself needs a desktop session). Checks what a user relies on: it stays alive, serves the UI, the API and the
+# bundled labs and stacks, a second launch reuses the running one, a port held by another program makes it pick a
+# free one, and the log file is written. `--version` must answer too.
 param(
     [Parameter(Mandatory = $true)][string]$Zip,
     [int]$Port = 18780
@@ -31,15 +32,18 @@ try {
     Expand-Archive -LiteralPath (Resolve-Path $Zip) -DestinationPath $work
     $exe = Join-Path $work "Nimbo\Nimbo.exe"
     Check "the zip contains Nimbo.exe" (Test-Path $exe)
-    Check "it brings its own Java runtime" ((Test-Path (Join-Path $work "Nimbo\runtime\bin\server\jvm.dll")) -and (Test-Path (Join-Path $work "Nimbo\runtime\lib\modules")))
 
-    # Keep the app's data (the log) inside the temp folder, and never open a browser or a tray icon.
-    $env:LOCALAPPDATA = Join-Path $work "localappdata"
-    $env:NIMBO_HEADLESS = "1"
+    # Keep the app's data (the log) inside the temp folder; never a window or a tray icon.
+    $env:NIMBO_DATA_DIR = Join-Path $work "data"
+    $env:NIMBO_LOG_FILE = "1"
     $env:NIMBO_PORT = "$Port"
+    $log = Join-Path $env:NIMBO_DATA_DIR "nimbo.log"
+
+    $ver = Start-Process $exe -ArgumentList "--version" -PassThru -Wait -RedirectStandardOutput (Join-Path $work "version.txt")
+    Check "--version answers" ($ver.ExitCode -eq 0)
 
     Write-Host "first launch"
-    $first = Start-Process $exe -PassThru
+    $first = Start-Process $exe -ArgumentList "serve" -PassThru
     $started.Add($first)
     $health = WaitHealthy $Port 40
     Check "it answers /api/health" ($null -ne $health -and $health.status -eq "ok")
@@ -50,9 +54,11 @@ try {
     Check "it serves the UI" ($ui.StatusCode -eq 200 -and $ui.Content -match "<title>Nimbo</title>")
     Check "the labs are bundled" ((Invoke-RestMethod "http://127.0.0.1:$Port/api/labs").labs.Count -ge 8)
     Check "the stacks are bundled" ((Invoke-RestMethod "http://127.0.0.1:$Port/api/stacks").stacks.Count -ge 3)
+    $bad = & curl.exe -s -o NUL -w "%{http_code}" -H "Host: evil.example" "http://127.0.0.1:$Port/"
+    Check "a foreign Host header is refused" ($bad -eq "403") "(got $bad)"
 
     Write-Host "second launch on the same port"
-    $second = Start-Process $exe -PassThru
+    $second = Start-Process $exe -ArgumentList "serve" -PassThru
     $started.Add($second)
     $exited = $second.WaitForExit(20000)
     Check "the second launch exits by itself" $exited
@@ -64,10 +70,10 @@ try {
     $listener.Start()
     $env:NIMBO_PORT = "$other"
     # its own data folder, so the log read below holds only this launch
-    $env:LOCALAPPDATA = Join-Path $work "localappdata-third"
-    $third = Start-Process $exe -PassThru
+    $env:NIMBO_DATA_DIR = Join-Path $work "data-third"
+    $log = Join-Path $env:NIMBO_DATA_DIR "nimbo.log"
+    $third = Start-Process $exe -ArgumentList "serve" -PassThru
     $started.Add($third)
-    $log = Join-Path $env:LOCALAPPDATA "Nimbo\nimbo.log"
     $line = $null
     for ($i = 0; $i -lt 60 -and -not $line; $i++) {
         Start-Sleep -Milliseconds 500

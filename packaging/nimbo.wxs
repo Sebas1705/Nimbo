@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nimbo installer (WiX 3). Built by packaging/build-msi.ps1:
+    candle -dProductVersion=0.2.1 -dExe=build\bin\Nimbo.exe -dIcon=packaging\nimbo.ico -dLicense=LICENSE ...
+
+  - Per user: it installs under %LOCALAPPDATA%\Nimbo and needs no administrator rights.
+  - UpgradeCode is fixed on purpose, and it is the one the old jpackage installer used: a newer MSI replaces the
+    installed version in place (and replaces the old Java build of Nimbo too) instead of installing next to it.
+  - It has no wizard pages of its own, so `msiexec /i Nimbo.msi /passive` (what the in-app updater runs) just shows progress.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Product Id="*" Name="Nimbo" Language="1033" Version="$(var.ProductVersion)" Manufacturer="Sebas1705"
+           UpgradeCode="7C3F2B9E-4D51-4A8E-9A47-2F1E6C0B5D83">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser"
+             Description="Nimbo - your local cloud, no bill" Comments="https://github.com/Sebas1705/Nimbo" />
+
+    <!-- The same version may be installed again (a rebuilt 0.x), a lower one may not. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Nimbo is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="nimbo.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="nimbo.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Sebas1705/Nimbo" />
+
+    <!-- Nimbo lives in the tray with its window hidden: ask it to close, and end it if it does not, so the files can be replaced. -->
+    <util:CloseApplication Id="CloseNimbo" Target="Nimbo.exe" CloseMessage="yes" RebootPrompt="no" TerminateProcess="0" Timeout="5" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="INSTALLFOLDER" Name="Nimbo" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="StartMenuNimbo" Name="Nimbo" />
+      </Directory>
+    </Directory>
+
+    <!-- Files of a per-user install need a registry value under HKCU as their key path (ICE38 / ICE64). A component with a file and a registry key path cannot use an automatic GUID, so these two have fixed ones: never change them. -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="NimboExe" Guid="D7EB74B7-EBC5-4977-A92D-39A62BFDC835">
+        <File Id="NimboExeFile" Name="Nimbo.exe" Source="$(var.Exe)" />
+        <RegistryValue Root="HKCU" Key="Software\Sebas1705\Nimbo" Name="exe" Type="integer" Value="1" KeyPath="yes" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+      </Component>
+      <Component Id="NimboLicense" Guid="FD994B43-2D26-48FA-9E94-FF68E779B4D9">
+        <File Id="LicenseFile" Name="LICENSE.txt" Source="$(var.License)" />
+        <RegistryValue Root="HKCU" Key="Software\Sebas1705\Nimbo" Name="license" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="StartMenuNimbo">
+      <Component Id="NimboShortcut" Guid="*">
+        <Shortcut Id="NimboStartMenuShortcut" Name="Nimbo" Description="Your local cloud, no bill"
+                  Target="[INSTALLFOLDER]Nimbo.exe" WorkingDirectory="INSTALLFOLDER" Icon="nimbo.ico" />
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Sebas1705\Nimbo" Name="shortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Nimbo" Title="Nimbo" Level="1">
+      <ComponentRef Id="NimboExe" />
+      <ComponentRef Id="NimboLicense" />
+      <ComponentRef Id="NimboShortcut" />
+    </Feature>
+  </Product>
+</Wix>

@@ -3,7 +3,11 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
-## [Unreleased]
+## [0.3.0]
+
+### Changed
+- **A real desktop app, rewritten in Go.** Nimbo is now a Wails app: it opens its own window (no browser, no Java), keeps an icon in the tray, runs a single instance and is about 14 MB instead of a 43 MB installer with its own Java. The React UI is the same. The backend was ported from Kotlin to Go keeping the API and its JSON, and the tests were ported with it. The MSI keeps the old upgrade code, so it replaces a 0.2.x install in place.
+- The standalone build is a binary (`nimbo serve`) instead of a jar; the Docker image runs it. The distribution kinds are now `binary`, `desktop` and `docker`.
 
 ### Added
 - **A data folder.** Settings, lab progress, usage statistics, a journal and the fidelity history are kept in `~/.nimbo` (`NIMBO_DATA_DIR`), with backup, restore and reset. Lab progress and the language/theme move from the browser to that folder (what the browser had is imported once).

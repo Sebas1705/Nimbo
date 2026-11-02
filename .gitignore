@@ -1,5 +1,5 @@
-.gradle/
-build/
+/build/bin/
+/web/wailsjs-unused/
 .kotlin/
 *.class
 node_modules/
@@ -10,3 +10,6 @@ web/dist/
 .idea/
 .vscode/
 *.log
+.claude/
+.gradle/
+.kotlin/

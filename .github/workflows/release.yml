@@ -1,6 +1,6 @@
 name: Release
 
-# A tag like v0.1.0 builds the jar, publishes a GitHub release and pushes the image to GHCR.
+# A tag like v0.1.0 builds the binaries, publishes a GitHub release and pushes the image to GHCR.
 # Running it by hand (Actions > Release > Run workflow) only builds and tests everything and keeps the
 # result as a workflow artifact: nothing is published.
 on:
@@ -22,11 +22,11 @@ jobs:
       - name: Work out the version
         id: version
         run: |
-          DECLARED=$(sed -n 's/.*?: "\([0-9][^"]*\)".*/\1/p' backend/build.gradle.kts | head -1)
+          DECLARED=$(tr -d '[:space:]' < VERSION)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
             if [[ "$VERSION" != "$DECLARED" ]]; then
-              echo "::error::The tag says $VERSION but backend/build.gradle.kts declares $DECLARED. Bump it and tag again."
+              echo "::error::The tag says $VERSION but VERSION declares $DECLARED. Bump it and tag again."
               exit 1
             fi
           else
@@ -35,11 +35,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Packaging Nimbo $VERSION"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-go@v5
         with:
-          distribution: temurin
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+          go-version-file: go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,22 +51,25 @@ jobs:
           npm test
           npm run build
 
-      - name: Backend tests and jar
-        run: ./gradlew --console=plain -PnimboVersion=${{ steps.version.outputs.version }} :backend:test :backend:buildFatJar
+      - name: Go checks
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./...
 
-      - name: Collect the jar
+      - name: Linux binary
         run: |
           mkdir dist
-          cp backend/build/libs/nimbo-${{ steps.version.outputs.version }}.jar dist/
-          (cd dist && sha256sum nimbo-*.jar)
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" -o dist/nimbo-${{ steps.version.outputs.version }}-linux-amd64 .
+          (cd dist && sha256sum nimbo-${{ steps.version.outputs.version }}-linux-amd64)
 
-      - name: The jar starts and serves the UI
+      - name: The binary starts and serves the UI
         run: |
-          java -jar dist/nimbo-${{ steps.version.outputs.version }}.jar &
-          for i in $(seq 1 30); do curl -sf localhost:8080/api/health && break; sleep 1; done
-          curl -sf localhost:8080/api/health | grep -q '"version":"${{ steps.version.outputs.version }}"'
-          curl -sf localhost:8080/ | grep -q '<title>Nimbo</title>'
-          curl -sf localhost:8080/api/labs | grep -q first-bucket
+          NIMBO_DATA_DIR=$(mktemp -d) ./dist/nimbo-${{ steps.version.outputs.version }}-linux-amd64 serve --port 18080 &
+          for i in $(seq 1 30); do curl -sf localhost:18080/api/health && break; sleep 1; done
+          curl -sf localhost:18080/api/health | grep -q '"version":"${{ steps.version.outputs.version }}"'
+          curl -sf localhost:18080/ | grep -q '<title>Nimbo</title>'
+          curl -sf localhost:18080/api/labs | grep -q first-bucket
           kill %1
 
       - name: The image builds
@@ -76,64 +77,60 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: web-dist
+          path: web/dist
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
           name: nimbo-${{ steps.version.outputs.version }}
           path: dist/
 
   desktop:
     needs: package
-    # Pinned: jpackage in JDK 21 needs WiX 3, which this image ships.
+    # Pinned: the installer is built with WiX 3, which this image ships.
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-go@v5
         with:
-          distribution: temurin
-          java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
-      - uses: actions/setup-node@v4
+          go-version-file: go.mod
+      - uses: actions/download-artifact@v4
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: web/package-lock.json
+          name: web-dist
+          path: web/dist
 
-      - name: Web build
-        working-directory: web
-        run: |
-          npm ci
-          npm run build
+      - name: Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
-      - name: Portable app (zip)
-        shell: bash
-        run: ./gradlew --console=plain -PnimboVersion=${{ needs.package.outputs.version }} :backend:zipDesktop
-
-      - name: The portable app runs
-        run: powershell -NoProfile -File packaging/smoke-test.ps1 -Zip backend/build/distributions/Nimbo-${{ needs.package.outputs.version }}-windows-x64.zip
-
-      - name: WiX
-        shell: pwsh
-        run: |
-          if (-not (Get-Command candle.exe -ErrorAction SilentlyContinue)) {
-            $dir = Get-ChildItem "${env:ProgramFiles(x86)}" -Filter "WiX Toolset*" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-            if (-not $dir) {
-              choco install wixtoolset --no-progress -y
-              $dir = Get-ChildItem "${env:ProgramFiles(x86)}" -Filter "WiX Toolset*" -Directory | Select-Object -First 1
-            }
-            "$($dir.FullName)\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
-            Write-Host "WiX: $($dir.FullName)"
-          }
-
-      - name: Installer (msi)
-        shell: bash
-        run: ./gradlew --console=plain -PnimboVersion=${{ needs.package.outputs.version }} -PdesktopType=msi :backend:packageDesktop
-
-      - name: Collect
+      - name: Build the app
         shell: bash
         run: |
           V=${{ needs.package.outputs.version }}
-          mkdir dist
-          cp backend/build/distributions/Nimbo-$V-windows-x64.zip dist/
-          cp backend/build/desktop/Nimbo-$V.msi dist/Nimbo-$V-windows-x64.msi
-          ls -la dist
+          # The version resource of the exe comes from wails.json.
+          sed -i "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"$V\"/" wails.json
+          wails build -s -platform windows/amd64 -ldflags "-X main.version=$V" -o Nimbo.exe
+
+      - name: Portable app (zip)
+        shell: pwsh
+        run: |
+          $v = "${{ needs.package.outputs.version }}"
+          New-Item -ItemType Directory -Force dist/Nimbo | Out-Null
+          Copy-Item build/bin/Nimbo.exe, LICENSE dist/Nimbo/
+          Compress-Archive -Path dist/Nimbo -DestinationPath "dist/Nimbo-$v-windows-x64.zip"
+          Remove-Item dist/Nimbo -Recurse
+
+      - name: The portable app runs
+        shell: pwsh
+        run: |
+          powershell -NoProfile -File packaging/smoke-test.ps1 -Zip "dist/Nimbo-${{ needs.package.outputs.version }}-windows-x64.zip"
+          exit $LASTEXITCODE
+
+      - name: Installer (msi)
+        shell: pwsh
+        run: |
+          $v = "${{ needs.package.outputs.version }}"
+          powershell -NoProfile -File packaging/build-msi.ps1 -Version $v -Exe build/bin/Nimbo.exe -Out "dist/Nimbo-$v-windows-x64.msi"
+          exit $LASTEXITCODE
 
       - uses: actions/upload-artifact@v4
         with:
@@ -141,18 +138,21 @@ jobs:
           path: dist/
 
   # The emulator images, saved as files so Nimbo can run with no internet (Sistema > Sin conexión loads them).
-  # Which image goes in which pack is backend/src/main/resources/image-packs.json, and a test keeps it in step with the catalog.
+  # Which image goes in which pack is the image-packs.json below, and a test keeps it in step with the catalog.
+  # (Integrator: point PACKS at the file's new place when the update area moves it.)
   images:
     needs: package
     runs-on: ubuntu-latest
+    env:
+      PACKS: internal/nimbo/resources/image-packs.json
     steps:
       - uses: actions/checkout@v4
       - name: Save the image packs
         run: |
           V=${{ needs.package.outputs.version }}
           mkdir dist
-          for pack in $(jq -r '.packs[].id' backend/src/main/resources/image-packs.json); do
-            IMAGES=$(jq -r --arg p "$pack" '.packs[] | select(.id==$p) | .images[]' backend/src/main/resources/image-packs.json)
+          for pack in $(jq -r '.packs[].id' "$PACKS"); do
+            IMAGES=$(jq -r --arg p "$pack" '.packs[] | select(.id==$p) | .images[]' "$PACKS")
             for image in $IMAGES; do docker pull --quiet "$image"; done
             docker save $IMAGES | gzip -6 > "dist/Nimbo-$V-images-$pack.tar.gz"
             SIZE=$(stat -c %s "dist/Nimbo-$V-images-$pack.tar.gz")

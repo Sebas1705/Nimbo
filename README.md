@@ -1,12 +1,12 @@
 # Nimbo
 
-**Your local cloud, no bill.** Nimbo is a small web app that starts, stops and inspects the open-source emulators you need to practise distributed systems on AWS, Azure, GCP and OCI, without paying for a single cloud resource.
+**Your local cloud, no bill.** Nimbo is a desktop app that starts, stops and inspects the open-source emulators you need to practise distributed systems on AWS, Azure, GCP and OCI, without paying for a single cloud resource.
 
 It does not emulate any cloud by itself. It orchestrates existing emulators ([Floci](https://floci.io), Azurite, MinIO, Redpanda, PostgreSQL, Redis) and gives you one place to run them, see their state and read their logs and the environment variables your code needs to talk to them.
 
 ## Status
 
-Version 0.1.0 (see the [changelog](CHANGELOG.md)); while it is 0.x, anything may still change. Working today:
+See the [changelog](CHANGELOG.md)); while it is 0.x, anything may still change. Working today:
 
 - **A built-in guide.** A start page with the five steps and one-click recipes (AWS, the three clouds, events and queues, Kubernetes and traces, break things on purpose); a guide for every provider with where it listens, commands to paste and the traps to avoid; and a short "How it works" note on every screen. All in English and Spanish. A test keeps the guides in step with the real catalog (ports, labs, stacks, which providers need secrets).
 - **A calmer interface.** Light and dark themes (it follows your system and you can pin one), navigation grouped by what you are doing (Start, Build, Observe, Break, Learn), and every provider shown with its port on the front plate. The fonts are bundled, so it looks the same offline.
@@ -29,18 +29,14 @@ Planned: mount the Docker socket so Lambda and EC2 work, Azure and Cloud Storage
 
 You need Docker (Docker Desktop or Engine) running. Nimbo drives it to start the emulators.
 
-**Windows app** (no Java needed, it brings its own). Download from the [releases](https://github.com/Sebas1705/Nimbo/releases) either `Nimbo-<version>-windows-x64.msi` (installs for your user only, no administrator rights, adds a Start menu entry and updates in place when you install a newer one) or `Nimbo-<version>-windows-x64.zip` (portable: unzip and run `Nimbo.exe`). Nimbo starts, opens its UI in your browser and leaves an icon in the system tray: double click or **Open Nimbo** to see it again, **Quit Nimbo** to stop it (the emulators it started keep running until you stop them). Starting it a second time only reopens the running one, and if port 8080 is taken by another program it picks a free port. Docker Desktop must be running.
+**Windows app.** Download from the [releases](https://github.com/Sebas1705/Nimbo/releases) either `Nimbo-<version>-windows-x64.msi` (installs for your user only, no administrator rights, adds a Start menu entry and updates in place, replacing the older Java-based builds) or `Nimbo-<version>-windows-x64.zip` (portable: unzip and run `Nimbo.exe`). Nimbo opens **its own window** (no browser) and leaves an icon in the system tray: closing the window hides it there, **Open Nimbo** shows it again and **Quit Nimbo** stops it (the emulators it started keep running until you stop them). Starting it a second time only brings the running one to the front. Docker Desktop must be running. It needs the WebView2 runtime, which Windows 11 already includes.
 
-The installer is **not code-signed**, so Windows SmartScreen will warn that the publisher is unknown ("More info" > "Run anyway"); check the file against `SHA256SUMS` first. Settings are read from your Windows environment variables (`NIMBO_API_TOKEN`, `NIMBO_PORT`, `NIMBO_MINIO_PASSWORD`...), and the log is in `%LOCALAPPDATA%\Nimbo\nimbo.log`.
+The installer is **not code-signed**, so Windows SmartScreen will warn that the publisher is unknown ("More info" > "Run anyway"); check the file against `SHA256SUMS` first. Settings are read from your Windows environment variables (`NIMBO_API_TOKEN`, `NIMBO_MINIO_PASSWORD`...) or stored from the app (*System > Settings and data*), and the log is in `%LOCALAPPDATA%Nimbo
+imbo.log`.
 
-**The jar** (needs Java 21). Download `nimbo-<version>.jar` from the [releases](https://github.com/Sebas1705/Nimbo/releases), check it against `SHA256SUMS`, and run it from any folder; the UI, the labs and the default stacks are inside it:
+**The standalone binary.** `nimbo-<version>-linux-amd64` (or the Windows zip) also runs without a window: `nimbo serve` listens on http://127.0.0.1:8080 (`NIMBO_PORT`, `NIMBO_HOST`) and serves the same UI to your browser. Useful on a server or in CI.
 
-```bash
-java -jar nimbo-0.1.0.jar
-# then open http://127.0.0.1:8080
-```
-
-**Docker Compose** (no Java needed, the easiest way). From a checkout, or with just [`docker-compose.yml`](docker-compose.yml) saved in a folder:
+**Docker Compose** (the easiest way on a server). From a checkout, or with just [`docker-compose.yml`](docker-compose.yml) saved in a folder:
 
 ```bash
 docker compose up -d
@@ -60,11 +56,12 @@ docker run -d --name nimbo --restart unless-stopped -p 127.0.0.1:8080:8080 \
   ghcr.io/sebas1705/nimbo
 ```
 
-**From source** (JDK 21 and Node 22+; the [Doppler CLI](https://docs.doppler.com/docs/install-cli) only if you want the secrets-backed providers, MinIO and PostgreSQL, and the API token):
+**From source** (Go 1.25+, Node 22+ and the [Wails](https://wails.io) CLI for the window; the [Doppler CLI](https://docs.doppler.com/docs/install-cli) only if you want the secrets-backed providers, MinIO and PostgreSQL, and the API token):
 
 ```bash
 cd web && npm ci && npm run build && cd ..
-./gradlew :backend:buildFatJar        # backend/build/libs/nimbo-<version>.jar
+wails build                                  # build/bin/Nimbo.exe, the desktop app
+go build -o nimbo . && ./nimbo serve         # or the headless binary
 ```
 
 See [RELEASING.md](RELEASING.md) for how a release is cut.
@@ -72,21 +69,22 @@ See [RELEASING.md](RELEASING.md) for how a release is cut.
 ## Run it from source
 
 ```bash
-# 1. Build the web UI
+# 1. Build the web UI (it is embedded in the binary)
 cd web && npm ci && npm run build && cd ..
 
-# 2. Start the backend (serves the UI and the API on http://127.0.0.1:8080)
-./gradlew :backend:run
+# 2. Start Nimbo without a window (serves the UI and the API on http://127.0.0.1:8080)
+go run . serve
+# or with the window: wails dev
 ```
 
 With secrets from Doppler (project `nimbo`, config `dev`; see `doppler.yaml`):
 
 ```bash
 doppler setup
-doppler run -- ./gradlew :backend:run
+doppler run -- go run . serve
 ```
 
-For UI development run the backend as above and `npm run dev` in `web/` (Vite proxies `/api`).
+For UI development run `go run . serve` as above and `npm run dev` in `web/` (Vite proxies `/api`).
 
 ## Configuration
 
@@ -105,7 +103,7 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_LABS_DIR` | Directory with lab YAML files | `labs` |
 | `NIMBO_DATA_DIR` | Where settings, progress, statistics and stored secrets live | `~/.nimbo` |
 | `NIMBO_IMAGES_DIR` | Extra folder with emulator image packs for *System > Offline* | unset |
-| `NIMBO_DISTRIBUTION` | `jar`, `desktop` or `docker`: decides how updates are offered (set by the installer and the image) | `jar` |
+| `NIMBO_DISTRIBUTION` | `binary`, `desktop` or `docker`: decides how updates are offered (set by the installer and the image) | `binary` |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
 
@@ -116,7 +114,7 @@ Nimbo keeps what it learns about you in a folder on your computer (`~/.nimbo`, o
 - **Settings, lab progress and statistics** (time each emulator was up, a journal of what you did, the history of the fidelity matrix). *System > Activity* shows them; *System > Settings and data* backs them up and restores them. A backup never contains passwords or emulator data.
 - **Keep emulator data.** Each emulator with something worth keeping has a *Keep data* switch on its card: its data then lives in a Docker volume (`nimbo-<id>-data`) and survives stopping or removing the container. Deleting the data is a separate, confirmed action. With PostgreSQL the password is fixed when its data is first created.
 - **Passwords in the Windows store.** The MinIO and PostgreSQL credentials can be stored encrypted for your Windows user (DPAPI) instead of in an environment variable; an environment variable still wins. Elsewhere Nimbo says it cannot protect them rather than writing them in clear.
-- **Updates.** Nimbo checks `github.com/Sebas1705/Nimbo` for a newer release (at most once a day in automatic mode, never in manual mode), shows the notes, downloads the installer for how you installed it, verifies it against the release's `SHA256SUMS` and installs only after you confirm. The Windows app installs itself; the jar gives you the new file; Docker shows the `docker compose pull` command. You can also import an installer you brought yourself.
+- **Updates.** Nimbo checks `github.com/Sebas1705/Nimbo` for a newer release (at most once a day in automatic mode, never in manual mode), shows the notes, downloads the installer for how you installed it, verifies it against the release's `SHA256SUMS` and installs only after you confirm. The Windows app installs itself; the standalone binary gives you the new file; Docker shows the `docker compose pull` command. You can also import an installer you brought yourself.
 - **Offline.** Every release publishes the emulator images as `Nimbo-<version>-images-<pack>.tar.gz` files. `packaging/make-offline-kit.ps1` downloads the installer and the packs (verified) into a folder you can carry; *System > Offline* loads them with `docker load`.
 
 ## Fidelity
@@ -156,7 +154,7 @@ Nimbo can start containers on your machine, so it listens on loopback by default
 ## Tests
 
 ```bash
-./gradlew :backend:test
+go vet ./... && go test ./...
 cd web && npm test
 ```
 

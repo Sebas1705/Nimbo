@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "Nimbo",
+  "outputfilename": "Nimbo",
+  "frontend:dir": "web",
+  "frontend:install": "npm ci",
+  "frontend:build": "npm run build",
+  "wailsjsdir": "web/wailsjs-unused",
+  "author": {
+    "name": "Sebas1705",
+    "email": "sebssgarcia502580@gmail.com"
+  },
+  "info": {
+    "companyName": "Sebas1705",
+    "productName": "Nimbo",
+    "productVersion": "0.3.0",
+    "copyright": "MIT License",
+    "comments": "Your local cloud, no bill"
+  }
+}

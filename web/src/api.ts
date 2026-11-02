@@ -336,7 +336,7 @@ export interface StatsView {
   journal: JournalEntry[]
   fidelity: FidelityRun[]
 }
-export interface DataInfo { location: string | null; files: Record<string, number>; distribution: 'jar' | 'desktop' | 'docker' }
+export interface DataInfo { location: string | null; files: Record<string, number>; distribution: 'binary' | 'desktop' | 'docker' }
 export interface SecretItem { name: string; set: boolean; usedBy: string[]; password: boolean }
 export interface SecretsView { available: boolean; reason: string | null; items: SecretItem[] }
 export type ResetWhat = 'stats' | 'progress' | 'history' | 'all'
@@ -364,7 +364,7 @@ export interface UpdateRelease { tag: string; version: string; notes: string; pu
 export interface UpdateFile { version: string; name: string; sha256: string; verified: boolean; source: 'github' | 'file'; size: number; at: number }
 export interface UpdateStatus {
   current: string | null
-  distribution: 'jar' | 'desktop' | 'docker'
+  distribution: 'binary' | 'desktop' | 'docker'
   mode: 'auto' | 'manual'
   checkedAt: number | null
   latest: UpdateRelease | null
