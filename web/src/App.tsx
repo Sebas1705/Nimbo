@@ -19,7 +19,7 @@ import { NAV, groupOf, itemOf, startTab, type TabId } from './nav'
 import { applyTheme, loadTheme, nextTheme, readPref, writePref, type Theme } from './prefs'
 import { ActivityView, OfflineView, SettingsView, UpdatesView } from './System'
 import { updateDot } from './systemLogic'
-import { Notice, message } from './ui'
+import { Notice, message, pollInterval, usePolling } from './ui'
 import './screens.css'
 
 function initialLang(): Lang {
@@ -69,10 +69,11 @@ export function App() {
 
   useEffect(() => {
     api.health().then((h) => setVersion(h.version ?? null)).catch(() => {})
-    refresh()
-    const id = setInterval(refresh, 3000)
-    return () => clearInterval(id)
-  }, [refresh])
+  }, [])
+
+  // Asks what is running often where that is the screen, rarely elsewhere or with Docker down, and not at all while the
+  // window is hidden.
+  usePolling(refresh, pollInterval({ tab: tab ?? firstTab ?? 'guide', dockerUp: docker?.available !== false }))
 
   // Settings live in the data folder; the browser copy only makes the first paint right. The server wins once it has an answer.
   useEffect(() => {
@@ -326,7 +327,7 @@ export function App() {
         {current === 'offline' && <OfflineView t={t} lang={lang} />}
       </main>
 
-      {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}
+      {panel && <SidePanel panel={panel} t={t} lang={lang} onClose={() => setPanel(null)} />}
       {exporting && <ExportPanel stack={exporting} t={t} lang={lang} hasAws={exporting.providers.includes('floci-aws')} onClose={() => setExporting(null)} />}
       {guideProvider && (
         <ProviderGuidePanel

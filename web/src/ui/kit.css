@@ -16,3 +16,7 @@
 .confirm button { min-height: var(--ctl-sm); padding: 0 11px; font-size: 12.5px; }
 button.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 650; }
 button.danger-solid:hover:not(:disabled) { filter: brightness(0.92); border-color: var(--bad); }
+
+.notice-with-action { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.notice-text { display: grid; gap: 4px; min-width: 0; }
+.confirm:focus { outline: none; }

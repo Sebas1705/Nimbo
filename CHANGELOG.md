@@ -3,9 +3,12 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
-## [Unreleased]
+## [0.5.0]
 
 ### Changed
+- **One shared kit for the interface.** Every screen now builds on the same components (feedback, notices, cards, pills, drawers, copy buttons, form fields and the confirmation button), so loading, errors and empty states look and behave alike everywhere. The registry screen was split into sections.
+- **Confirmations happen in place.** The nine browser `confirm()` pop-ups became an inline question next to the button (Escape cancels only the question). Deleting things in the Kubernetes screen now asks too.
+- **Polling adapts to what you look at.** Screens that show live state refresh every 3 s, the others every 10 s, Docker being down every 8 s, and nothing while the window is hidden.
 - **Much lighter polling.** The page asks for the state of Docker, the emulators and the stacks every 3 seconds; each answer used to start its own `docker` processes (92 per minute, 0.6 to 0.9 s per answer). The container runtime now shares one run of `docker` between those requests and drops what it remembers the moment you change something, so what you do still shows at once. Measured with Docker running: 20 processes per minute and a median of 1 to 47 ms per answer.
 
 ## [0.4.1]

@@ -72,3 +72,38 @@ export function useCopy(ms = 1500) {
   }
   return { copied, copy }
 }
+
+/**
+ * Calls `fn` now and then every `everyMs`, but only while the window is visible: a hidden window stops asking, and asks
+ * once at once when it is shown again. Changing the interval restarts the timer.
+ */
+export function usePolling(fn: () => unknown, everyMs: number) {
+  const ref = useRef(fn)
+  ref.current = fn
+  useEffect(() => {
+    let id: ReturnType<typeof setInterval> | undefined
+    const stop = () => {
+      if (id !== undefined) clearInterval(id)
+      id = undefined
+    }
+    const start = () => {
+      stop()
+      if (!document.hidden) id = setInterval(() => ref.current(), everyMs)
+    }
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop()
+      } else {
+        ref.current()
+        start()
+      }
+    }
+    ref.current()
+    start()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [everyMs])
+}

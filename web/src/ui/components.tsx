@@ -38,11 +38,14 @@ export function Feedback({ working = '', error = '', done = '' }: { working?: st
 }
 
 /** A message that stays on the page: something to know, to be careful about, or that went wrong. */
-export function Notice({ tone = 'warn', title, children }: { tone?: 'warn' | 'bad' | 'ok'; title?: string; children?: ReactNode }) {
+export function Notice({ tone = 'warn', title, children, action }: { tone?: 'warn' | 'bad' | 'ok'; title?: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className={`notice notice-${tone}`} role={tone === 'bad' ? 'alert' : 'status'}>
-      {title && <b>{title}</b>}
-      {children && <div>{children}</div>}
+    <div className={`notice notice-${tone}${action ? ' notice-with-action' : ''}`} role={tone === 'bad' ? 'alert' : 'status'}>
+      <div className="notice-text">
+        {title && <b>{title}</b>}
+        {children && <div>{children}</div>}
+      </div>
+      {action && <div className="actions">{action}</div>}
     </div>
   )
 }
@@ -61,9 +64,9 @@ export function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
 // ---------------------------------------------------------------------------------------------------------------------
 
 /** A titled block with optional actions on the right: the unit every screen is made of. */
-export function Card({ title, actions, tone, children }: { title?: string; actions?: ReactNode; tone?: 'highlight'; children: ReactNode }) {
+export function Card({ title, actions, tone, className, children }: { title?: ReactNode; actions?: ReactNode; tone?: 'highlight'; className?: string; children: ReactNode }) {
   return (
-    <section className={tone ? `sys-card ${tone}` : 'sys-card'}>
+    <section className={['sys-card', tone, className].filter(Boolean).join(' ')}>
       {(title || actions) && (
         <header className="card-head">
           {title && <h3>{title}</h3>}
@@ -124,7 +127,7 @@ export function Facts({ items }: { items: Array<[string, ReactNode]> }) {
  * with the explicit action and a cancel. It withdraws itself after a few seconds, on Escape and when focus leaves it.
  */
 export function ConfirmButton({
-  lang, label, question, confirmLabel, onConfirm, disabled, className = 'ghost danger', children,
+  lang, label, question, confirmLabel, onConfirm, disabled, className = 'ghost danger', title, children,
 }: {
   lang: Lang
   label: string
@@ -134,6 +137,8 @@ export function ConfirmButton({
   onConfirm: () => void
   disabled?: boolean
   className?: string
+  /** Tooltip of the button while it is not asking (for example why it is disabled). */
+  title?: string
   /** Extra controls inside the question, for example a checkbox ("also delete the volumes"). */
   children?: ReactNode
 }) {
@@ -155,7 +160,7 @@ export function ConfirmButton({
 
   if (state === 'idle') {
     return (
-      <button className={className} disabled={disabled} onClick={() => step('press')}>
+      <button className={className} disabled={disabled} title={title} onClick={() => step('press')}>
         {label}
       </button>
     )
@@ -166,7 +171,14 @@ export function ConfirmButton({
       className="confirm"
       role="alertdialog"
       aria-label={question}
-      onKeyDown={(e) => e.key === 'Escape' && step('cancel')}
+      // Focus stays inside the question when you press its text (a label, a checkbox caption) instead of leaving the page.
+      tabIndex={-1}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        // Escape closes only the question, not the drawer it may sit in.
+        e.nativeEvent.stopPropagation()
+        step('cancel')
+      }}
       onBlur={(e) => {
         if (!box.current?.contains(e.relatedTarget as Node | null)) step('blur')
       }}
@@ -329,7 +341,7 @@ export function FormActions({
 
 /** A panel that slides over the right of the screen: a title, its actions, a close button, Escape to leave. */
 export function Drawer({
-  title, label, lang, onClose, actions, wide, children,
+  title, label, lang, onClose, actions, wide, className, children,
 }: {
   title: ReactNode
   /** The accessible name when the title is not plain text. */
@@ -338,6 +350,7 @@ export function Drawer({
   onClose: () => void
   actions?: ReactNode
   wide?: boolean
+  className?: string
   children: ReactNode
 }) {
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -353,7 +366,7 @@ export function Drawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return (
-    <aside className={wide ? 'panel panel-wide' : 'panel'} role="dialog" aria-label={label ?? (typeof title === 'string' ? title : undefined)}>
+    <aside className={['panel', wide && 'panel-wide', className].filter(Boolean).join(' ')} role="dialog" aria-label={label ?? (typeof title === 'string' ? title : undefined)}>
       <div className="panel-head">
         <h3>{title}</h3>
         <div className="actions">
