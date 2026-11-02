@@ -31,13 +31,17 @@ type SecretStore interface {
 // UnavailableSecretMessage is what Nimbo says where nothing can protect a secret.
 const UnavailableSecretMessage = "Secrets can only be protected on Windows; elsewhere use environment variables or a .env file."
 
-// SecretNames are the only settings Nimbo knows what to do with: the ones emulators read when they start.
-var SecretNames = secretNames()
+// SecretNames are the settings of the built-in emulators. AllSecretNames also has the ones of registered images.
+var SecretNames = secretNames(CatalogProviders)
 
-func secretNames() []string {
+// AllSecretNames are the only settings Nimbo knows what to do with: the ones emulators read when they start, built-in
+// first, then those of the images a person registered.
+func AllSecretNames() []string { return secretNames(AllProviders()) }
+
+func secretNames(defs []ProviderDef) []string {
 	var out []string
 	seen := map[string]bool{}
-	for _, def := range CatalogProviders {
+	for _, def := range defs {
 		for _, v := range def.Vars {
 			if !seen[v.Name] {
 				seen[v.Name] = true
@@ -52,10 +56,11 @@ func isSecretName(name string) bool { return varSpecByName(name) != nil }
 
 // varSpecByName finds the description of a setting by its NIMBO_* name.
 func varSpecByName(name string) *VarSpec {
-	for i := range CatalogProviders {
-		for j := range CatalogProviders[i].Vars {
-			if CatalogProviders[i].Vars[j].Name == name {
-				return &CatalogProviders[i].Vars[j]
+	all := AllProviders()
+	for i := range all {
+		for j := range all[i].Vars {
+			if all[i].Vars[j].Name == name {
+				return &all[i].Vars[j]
 			}
 		}
 	}
@@ -157,7 +162,7 @@ func GenerateFor(v VarSpec) (string, error) {
 // SecretUsedBy lists which providers read each setting, for the UI.
 func SecretUsedBy(name string) []string {
 	out := []string{}
-	for _, def := range CatalogProviders {
+	for _, def := range AllProviders() {
 		for _, v := range def.Vars {
 			if v.Name == name {
 				out = append(out, def.ID)

@@ -1,6 +1,9 @@
 package nimbo
 
-import "strings"
+import (
+	"strings"
+	"sync"
+)
 
 // coreChaosTarget mirrors the ports of the Chaos area (Chaos.kt) that the catalog and the exports need: which
 // emulator port Toxiproxy fronts and where. It is private to core so the two areas do not share a type.
@@ -257,7 +260,47 @@ func catalogProviders() []ProviderDef {
 // CatalogProviders is the built-in list of providers, in the order the UI shows them. Treat it as read-only.
 var CatalogProviders = catalogProviders()
 
-// CatalogFind returns the provider with that id, or nil.
+// customProviders are the images a person registered (see registry_images.go). The registry replaces the whole list
+// whenever it changes, so readers get a consistent snapshot without holding any lock while they work.
+var (
+	customMu        sync.RWMutex
+	customProviders []ProviderDef
+)
+
+// SetCustomProviders replaces the registered images. Only the registry calls it.
+func SetCustomProviders(defs []ProviderDef) {
+	customMu.Lock()
+	customProviders = append([]ProviderDef(nil), defs...)
+	customMu.Unlock()
+}
+
+// AllProviders is every provider Nimbo can run: the built-in ones first, in catalog order, then the registered images.
+// Runtime code uses this; CatalogProviders stays "built-in only" for the catalog's own checks.
+func AllProviders() []ProviderDef {
+	customMu.RLock()
+	defer customMu.RUnlock()
+	out := make([]ProviderDef, 0, len(CatalogProviders)+len(customProviders))
+	out = append(out, CatalogProviders...)
+	return append(out, customProviders...)
+}
+
+// FindProvider returns the built-in or registered provider with that id, or nil.
+func FindProvider(id string) *ProviderDef {
+	if d := CatalogFind(id); d != nil {
+		return d
+	}
+	customMu.RLock()
+	defer customMu.RUnlock()
+	for i := range customProviders {
+		if customProviders[i].ID == id {
+			d := customProviders[i]
+			return &d
+		}
+	}
+	return nil
+}
+
+// CatalogFind returns the built-in provider with that id, or nil.
 func CatalogFind(id string) *ProviderDef {
 	for i := range CatalogProviders {
 		if CatalogProviders[i].ID == id {

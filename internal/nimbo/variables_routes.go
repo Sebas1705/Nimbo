@@ -65,8 +65,8 @@ func (v *VariableRoutes) Register(mux *http.ServeMux) {
 }
 
 func (v *VariableRoutes) list(w http.ResponseWriter, r *http.Request) error {
-	out := make([]ProviderVarsDto, 0, len(CatalogProviders))
-	for _, def := range CatalogProviders {
+	out := make([]ProviderVarsDto, 0, len(AllProviders()))
+	for _, def := range AllProviders() {
 		dto := ProviderVarsDto{Provider: def.ID, Name: def.Name, Vars: []VarDto{}}
 		sources := VarSources(r.Context(), def, v.Config.HostEnv, v.Secrets)
 		for _, spec := range def.Vars {
@@ -97,7 +97,7 @@ func (v *VariableRoutes) reveal(w http.ResponseWriter, r *http.Request) error {
 	if !isSecretName(name) {
 		return UnknownTarget{"Unknown secret '" + name + "'"}
 	}
-	for _, def := range CatalogProviders {
+	for _, def := range AllProviders() {
 		for _, rv := range ResolveVars(r.Context(), def, v.Config.HostEnv, v.Secrets) {
 			if rv.Spec.Name == name && rv.Source != SourceUnset {
 				v.Data.Stats.Record("secret.reveal", name)

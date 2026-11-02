@@ -62,13 +62,11 @@ func Assemble(cfg Config, opts AssembleOptions) (http.Handler, io.Closer) {
 	}
 	updater := NewUpdater(UpdateConfig{Version: cfg.Version, Distribution: cfg.Distribution},
 		updateSettings2{data.Settings}, updateActivity2{data.Stats}, updateStore2{data.Store}, NewHTTPDownloader(), dataDir, updOpts)
-	var refs []ImageProviderRef
-	for _, p := range CatalogProviders {
-		refs = append(refs, ImageProviderRef{ID: p.ID, Image: p.Image})
-	}
 	images := NewImages(runtime2{ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")}}, func() []string {
 		return ImagesSearchFolders(env, dataDir, appDir)
-	}, updateActivity2{data.Stats}, refs, nil)
+	}, updateActivity2{data.Stats}, ImageRefsOfAllProviders(), nil)
+	// Asked every time, so images registered later are listed and can be pulled.
+	images.UseProviders(ImageRefsOfAllProviders)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	routes := []func(*http.ServeMux){

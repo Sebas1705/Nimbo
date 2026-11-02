@@ -390,7 +390,7 @@ func (s *SettingsService) Patch(p SettingsPatch) (Settings, error) {
 func (s *SettingsService) SetPersist(providerID string, enabled bool) (Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	def := CatalogFind(providerID)
+	def := FindProvider(providerID)
 	if def == nil {
 		return Settings{}, UnknownTarget{"Unknown provider '" + providerID + "'"}
 	}

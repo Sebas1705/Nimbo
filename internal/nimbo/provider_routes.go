@@ -33,7 +33,7 @@ func (p *ProviderRoutes) Register(mux *http.ServeMux) {
 
 func coreProviderParam(r *http.Request) (ProviderDef, error) {
 	id := Param(r, "id")
-	def := CatalogFind(id)
+	def := FindProvider(id)
 	if def == nil {
 		return ProviderDef{}, UnknownTarget{"Unknown provider '" + id + "'"}
 	}
@@ -50,7 +50,7 @@ func coreConflict(w http.ResponseWriter, err error, fallback string) {
 func coreProviderDto(def ProviderDef, state RunState, detail *string, persist, hasData bool) ProviderDto {
 	return ProviderDto{
 		ID: def.ID, Name: def.Name, Cloud: string(def.Cloud), Description: def.Description, Image: def.Image,
-		Ports: def.Ports, State: string(state), Detail: detail,
+		Ports: def.Ports, State: string(state), Detail: detail, Custom: def.Custom,
 		Persistable: def.Persist != nil, Persist: persist, HasData: hasData, NeedsSetup: []string{},
 	}
 }
@@ -73,8 +73,8 @@ func (p *ProviderRoutes) list(w http.ResponseWriter, r *http.Request) error {
 	for _, id := range p.Data.Settings.Get().Persist {
 		persisting[id] = true
 	}
-	out := make([]ProviderDto, 0, len(CatalogProviders))
-	for _, def := range CatalogProviders {
+	out := make([]ProviderDto, 0, len(AllProviders()))
+	for _, def := range AllProviders() {
 		state := StateNotCreated
 		var detail *string
 		if info, ok := live[def.ID]; ok {
@@ -307,7 +307,13 @@ func (s *StackRoutes) up(w http.ResponseWriter, r *http.Request) error {
 			results = append(results, StepResultDto{ID: id, OK: true})
 			continue
 		}
-		def := *CatalogFind(id)
+		found := FindProvider(id)
+		if found == nil {
+			// An image registered when the stack was written may have been deleted since.
+			results = append(results, coreStepResult(id, UnknownTarget{"Unknown provider '" + id + "'"}))
+			continue
+		}
+		def := *found
 		err := s.Runtime.Start(ctx, def, EnvForProvider(ctx, def, s.Config.HostEnv, s.Secrets), s.Data.Settings.Persists(id))
 		if err == nil {
 			s.Data.Stats.Record("provider.start", id)
@@ -333,7 +339,12 @@ func (s *StackRoutes) down(w http.ResponseWriter, r *http.Request) error {
 			results = append(results, StepResultDto{ID: id, OK: true})
 			continue
 		}
-		err := s.Runtime.Stop(ctx, *CatalogFind(id))
+		found := FindProvider(id)
+		if found == nil {
+			results = append(results, StepResultDto{ID: id, OK: true})
+			continue
+		}
+		err := s.Runtime.Stop(ctx, *found)
 		if err == nil {
 			s.Data.Stats.Record("provider.stop", id)
 		}
@@ -356,7 +367,7 @@ func (s *StackRoutes) export(w http.ResponseWriter, r *http.Request) error {
 	var defs []ProviderDef
 	hasAWS := false
 	for _, id := range stack.Providers {
-		if def := CatalogFind(id); def != nil {
+		if def := FindProvider(id); def != nil {
 			defs = append(defs, *def)
 			hasAWS = hasAWS || id == "floci-aws"
 		}

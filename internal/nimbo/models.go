@@ -85,6 +85,8 @@ type ProviderDef struct {
 	Endpoints Vars
 	// Persist is nil when the provider has nothing worth keeping (a proxy, an emulator without persistence).
 	Persist *PersistSpec
+	// Custom marks an image a person registered (see registry_images.go), as opposed to the built-in catalog.
+	Custom bool
 }
 
 // VarSpec describes one setting of an emulator.
@@ -131,6 +133,8 @@ type ProviderDto struct {
 	HasData bool `json:"hasData"`
 	// NeedsSetup lists the required settings that have no value yet; the emulator cannot start until they do.
 	NeedsSetup []string `json:"needsSetup"`
+	// Custom is true for an image the person registered, false for the built-in emulators.
+	Custom bool `json:"custom"`
 }
 
 type DockerStatusDto struct {

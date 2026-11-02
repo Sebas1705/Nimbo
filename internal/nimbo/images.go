@@ -115,6 +115,7 @@ type Images struct {
 	folders   func() []string
 	log       updateActivity
 	providers []ImageProviderRef
+	dynamic   func() []ImageProviderRef
 	packs     []PackDef
 	lock      sync.Mutex
 }
@@ -128,6 +129,26 @@ func NewImages(exec Exec, folders func() []string, log updateActivity, providers
 	return &Images{exec: exec, folders: folders, log: log, providers: providers, packs: packs}
 }
 
+// UseProviders makes the service ask for its providers every time instead of keeping the list it was built with, so
+// images registered later are found (and pulled) too.
+func (m *Images) UseProviders(f func() []ImageProviderRef) { m.dynamic = f }
+
+func (m *Images) refs() []ImageProviderRef {
+	if m.dynamic != nil {
+		return m.dynamic()
+	}
+	return m.providers
+}
+
+// ImageRefsOfAllProviders is the provider list the image service needs: built-in emulators and registered images.
+func ImageRefsOfAllProviders() []ImageProviderRef {
+	var out []ImageProviderRef
+	for _, p := range AllProviders() {
+		out = append(out, ImageProviderRef{ID: p.ID, Image: p.Image})
+	}
+	return out
+}
+
 func (m *Images) Status(ctx context.Context) ImagesStatus {
 	local := m.exec.Run(ctx, []string{"images", "--format", "{{.Repository}}:{{.Tag}}"}, 30)
 	have := map[string]bool{}
@@ -137,7 +158,7 @@ func (m *Images) Status(ctx context.Context) ImagesStatus {
 		}
 	}
 	images := []ImageState{}
-	for _, p := range m.providers {
+	for _, p := range m.refs() {
 		var pack *string
 		for _, d := range m.packs {
 			if imgContains(d.Images, p.Image) {
@@ -263,9 +284,10 @@ func (m *Images) Pull(ctx context.Context, providerID string) error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	var def *ImageProviderRef
-	for i := range m.providers {
-		if m.providers[i].ID == providerID {
-			def = &m.providers[i]
+	refs := m.refs()
+	for i := range refs {
+		if refs[i].ID == providerID {
+			def = &refs[i]
 			break
 		}
 	}
