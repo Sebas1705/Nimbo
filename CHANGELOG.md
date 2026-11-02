@@ -3,6 +3,13 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [0.4.1]
+
+### Changed
+- **A tidier interface.** Every button, field and select now shares one height (34 px, 28 px for small ones, 40 px on phones) with centred content, consistent padding and a visible keyboard focus ring.
+- **Better use of the screen.** The content area grows up to 1560 px, the side rail fits a 900 px screen without scrolling, and the "How it works" note became a button in the corner of the title that opens a card, so the content starts about 300 px higher on every screen. The note starts folded with a dot until you open it once, and remembers your choice.
+- Phones: bigger touch targets and a top bar that takes a third less height. Drawers keep their header in view while you scroll.
+
 ## [0.4.0]
 
 ### Added
