@@ -154,7 +154,8 @@ function ComposeCard({ lang, def, dockerUp, reload, onEdit }: { lang: Lang; def:
           disabled={act.busy || !running}
           onConfirm={down}
         >
-          <label className="check"><input type="checkbox" checked={volumes} onChange={(e) => setVolumes(e.target.checked)} /> {pick(lang, 'Borrar también los volúmenes (se pierden sus datos)', 'Also delete the volumes (their data is lost)')}</label>
+          {/* Pressing the label text would move focus out of the question (to the page) and withdraw it before the click lands. */}
+          <label className="check" onMouseDown={(e) => e.preventDefault()}><input type="checkbox" checked={volumes} onChange={(e) => setVolumes(e.target.checked)} /> {pick(lang, 'Borrar también los volúmenes (se pierden sus datos)', 'Also delete the volumes (their data is lost)')}</label>
         </ConfirmButton>
         <button className="ghost" disabled={act.busy || !dockerUp} onClick={validate}>{pick(lang, 'Validar', 'Validate')}</button>
         <button className="ghost" onClick={() => toggle('file')} aria-expanded={panel === 'file'}>{pick(lang, 'Ver archivo', 'View file')}</button>
