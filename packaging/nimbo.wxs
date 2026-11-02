@@ -35,14 +35,14 @@
       </Directory>
     </Directory>
 
-    <!-- Files of a per-user install need a registry value under HKCU as their key path (ICE38 / ICE64). -->
+    <!-- Files of a per-user install need a registry value under HKCU as their key path (ICE38 / ICE64). A component with a file and a registry key path cannot use an automatic GUID, so these two have fixed ones: never change them. -->
     <DirectoryRef Id="INSTALLFOLDER">
-      <Component Id="NimboExe" Guid="*">
+      <Component Id="NimboExe" Guid="D7EB74B7-EBC5-4977-A92D-39A62BFDC835">
         <File Id="NimboExeFile" Name="Nimbo.exe" Source="$(var.Exe)" />
         <RegistryValue Root="HKCU" Key="Software\Sebas1705\Nimbo" Name="exe" Type="integer" Value="1" KeyPath="yes" />
         <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
       </Component>
-      <Component Id="NimboLicense" Guid="*">
+      <Component Id="NimboLicense" Guid="FD994B43-2D26-48FA-9E94-FF68E779B4D9">
         <File Id="LicenseFile" Name="LICENSE.txt" Source="$(var.License)" />
         <RegistryValue Root="HKCU" Key="Software\Sebas1705\Nimbo" Name="license" Type="integer" Value="1" KeyPath="yes" />
       </Component>
