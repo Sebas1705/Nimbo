@@ -60,12 +60,12 @@ jobs:
       - name: Linux binary
         run: |
           mkdir dist
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" -o dist/nimbo-linux-amd64 .
-          (cd dist && sha256sum nimbo-linux-amd64)
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" -o dist/nimbo-${{ steps.version.outputs.version }}-linux-amd64 .
+          (cd dist && sha256sum nimbo-${{ steps.version.outputs.version }}-linux-amd64)
 
       - name: The binary starts and serves the UI
         run: |
-          NIMBO_DATA_DIR=$(mktemp -d) ./dist/nimbo-linux-amd64 serve --port 18080 &
+          NIMBO_DATA_DIR=$(mktemp -d) ./dist/nimbo-${{ steps.version.outputs.version }}-linux-amd64 serve --port 18080 &
           for i in $(seq 1 30); do curl -sf localhost:18080/api/health && break; sleep 1; done
           curl -sf localhost:18080/api/health | grep -q '"version":"${{ steps.version.outputs.version }}"'
           curl -sf localhost:18080/ | grep -q '<title>Nimbo</title>'
@@ -144,7 +144,7 @@ jobs:
     needs: package
     runs-on: ubuntu-latest
     env:
-      PACKS: backend/src/main/resources/image-packs.json
+      PACKS: internal/nimbo/resources/image-packs.json
     steps:
       - uses: actions/checkout@v4
       - name: Save the image packs

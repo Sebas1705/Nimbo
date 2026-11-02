@@ -89,7 +89,7 @@ type InstallRequestDto struct {
 // UpdateConfig is the part of the app configuration the updater reads. An empty Version means a development build.
 type UpdateConfig struct {
 	Version      string
-	Distribution string // "desktop", "jar" or "docker"
+	Distribution string // "desktop", "binary" or "docker"
 }
 
 // updateSettings is the settings view: the update mode ("auto" or "manual"), when GitHub was last asked (nil when
@@ -360,8 +360,8 @@ func (u *Updater) manualSteps(version string, newer bool) *string {
 		return nil
 	case u.cfg.Distribution == "docker":
 		return updStr("docker compose pull && docker compose up -d")
-	case u.cfg.Distribution == "jar":
-		return updStr("Replace your nimbo.jar with nimbo-" + version + ".jar from the downloaded file and start it again.")
+	case u.cfg.Distribution == "binary":
+		return updStr("Replace your Nimbo with " + binaryAssetName(version) + " from the downloaded file and start it again.")
 	}
 	return nil
 }
@@ -490,8 +490,8 @@ func (u *Updater) pickAsset(r *UpdateRelease) *UpdateAsset {
 	switch u.cfg.Distribution {
 	case "desktop":
 		wanted = "Nimbo-" + r.Version + "-windows-x64.msi"
-	case "jar":
-		wanted = "nimbo-" + r.Version + ".jar"
+	case "binary":
+		wanted = binaryAssetName(r.Version)
 	default:
 		return nil
 	}
@@ -593,7 +593,7 @@ func (u *Updater) Import(path string, expected *string) (UpdateFile, error) {
 	name := filepath.Base(path)
 	version, ok := UpdateVersionOf(name)
 	if !ok {
-		return UpdateFile{}, InvalidParam{"That does not look like a Nimbo installer (Nimbo-<version>-windows-x64.msi or nimbo-<version>.jar)"}
+		return UpdateFile{}, InvalidParam{"That does not look like a Nimbo installer (Nimbo-<version>-windows-x64.msi or .zip, nimbo-<version>-linux-amd64)"}
 	}
 	actual, err := UpdateFileSHA256(path)
 	if err != nil {
@@ -780,7 +780,7 @@ func (u *Updater) register(file UpdateFile) (UpdateFile, error) {
 
 // ---- helpers shared with the image service -------------------------------------------------------------------------
 
-var updateNamePattern = regexp.MustCompile(`^(?:Nimbo-(.+)-windows-x64\.msi|nimbo-(.+)\.jar)$`)
+var updateNamePattern = regexp.MustCompile(`^(?:Nimbo-(.+)-windows-x64.(?:msi|zip)|nimbo-(.+)-linux-amd64)$`)
 
 // UpdateVersionOf reads the version out of an installer's file name.
 func UpdateVersionOf(fileName string) (SemVer, bool) {
@@ -820,4 +820,13 @@ func UpdateFileSHA256(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// binaryAssetName is the file of a release that fits a Nimbo started with `nimbo serve` outside Docker: the portable
+// Windows zip on Windows and the Linux binary elsewhere.
+func binaryAssetName(version string) string {
+	if runtime.GOOS == "windows" {
+		return "Nimbo-" + version + "-windows-x64.zip"
+	}
+	return "nimbo-" + version + "-linux-amd64"
 }

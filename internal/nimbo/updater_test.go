@@ -34,7 +34,8 @@ func updReleasesJSON(versions ...string) string {
 	for _, v := range versions {
 		parts = append(parts, fmt.Sprintf(`{"tag_name":"v%[1]s","draft":false,"prerelease":true,"body":"notes %[1]s","published_at":"2026-11-01T00:00:00Z","assets":[
             {"name":"Nimbo-%[1]s-windows-x64.msi","size":%[2]d,"browser_download_url":"%[3]s/v%[1]s/Nimbo-%[1]s-windows-x64.msi"},
-            {"name":"nimbo-%[1]s.jar","size":10,"browser_download_url":"%[3]s/v%[1]s/nimbo-%[1]s.jar"},
+            {"name":"nimbo-%[1]s-linux-amd64","size":10,"browser_download_url":"%[3]s/v%[1]s/nimbo-%[1]s-linux-amd64"},
+            {"name":"Nimbo-%[1]s-windows-x64.zip","size":10,"browser_download_url":"%[3]s/v%[1]s/Nimbo-%[1]s-windows-x64.zip"},
             {"name":"SHA256SUMS","size":100,"browser_download_url":"%[3]s/v%[1]s/SHA256SUMS"},
             {"name":"evil.exe","size":1,"browser_download_url":"https://evil.example/evil.exe"}]}`, v, len(updMSIBytes), updBase))
 	}
@@ -278,7 +279,7 @@ func TestUpdateInstallerNamesCarryTheVersion(t *testing.T) {
 	if v, ok := UpdateVersionOf("Nimbo-0.3.0-windows-x64.msi"); !ok || v != (SemVer{0, 3, 0, ""}) {
 		t.Fatalf("msi -> %v %v", v, ok)
 	}
-	if v, ok := UpdateVersionOf("nimbo-0.3.0.jar"); !ok || v != (SemVer{0, 3, 0, ""}) {
+	if v, ok := UpdateVersionOf("nimbo-0.3.0-linux-amd64"); !ok || v != (SemVer{0, 3, 0, ""}) {
 		t.Fatalf("jar -> %v %v", v, ok)
 	}
 	for _, bad := range []string{"evil.exe", "Nimbo-0.3.0-windows-x64.msi.exe"} {
@@ -343,11 +344,11 @@ func TestUpdaterNothingIsOfferedWhenAlreadyCurrentOrNewer(t *testing.T) {
 
 func TestUpdaterJarInstallsPickTheJarAndDockerIsToldToPull(t *testing.T) {
 	ctx := context.Background()
-	jar := newUpdRig(t, newUpdFake(updReleasesJSON("0.3.0")), updRigOpts{dist: "jar"}).u.Check(ctx, true)
-	if jar.Asset == nil || jar.Asset.Name != "nimbo-0.3.0.jar" {
+	jar := newUpdRig(t, newUpdFake(updReleasesJSON("0.3.0")), updRigOpts{dist: "binary"}).u.Check(ctx, true)
+	if jar.Asset == nil || jar.Asset.Name != binaryAssetName("0.3.0") {
 		t.Fatalf("jar asset %+v", jar.Asset)
 	}
-	if jar.Manual == nil || !strings.Contains(*jar.Manual, "nimbo-0.3.0.jar") {
+	if jar.Manual == nil || !strings.Contains(*jar.Manual, binaryAssetName("0.3.0")) {
 		t.Errorf("jar manual %v", jar.Manual)
 	}
 	docker := newUpdRig(t, newUpdFake(updReleasesJSON("0.3.0")), updRigOpts{dist: "docker"}).u.Check(ctx, true)
@@ -585,7 +586,7 @@ func TestUpdaterInstallNeedsConfirmationTheDesktopAppANewerVersionAndAnUntouched
 }
 
 func TestUpdaterInstallIsRefusedOutsideTheDesktopAppAndForOlderVersions(t *testing.T) {
-	jar := newUpdRig(t, newUpdFake(updReleasesJSON("0.3.0")), updRigOpts{dist: "jar"})
+	jar := newUpdRig(t, newUpdFake(updReleasesJSON("0.3.0")), updRigOpts{dist: "binary"})
 	updInvalid(t, jar.u.Install("0.3.0", true))
 
 	old := newUpdRig(t, newUpdFake("[]"), updRigOpts{version: "0.5.0"})

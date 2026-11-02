@@ -1,5 +1,3 @@
-.gradle/
-backend/build/
 /build/bin/
 /web/wailsjs-unused/
 .kotlin/

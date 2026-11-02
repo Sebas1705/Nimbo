@@ -23,7 +23,7 @@ type Config struct {
 	EmulatorHost string
 	// Version is empty in a development run (the health endpoint then says null instead of making one up).
 	Version string
-	// Distribution is how Nimbo was installed: "jar", "desktop" (Nimbo.exe) or "docker". The updater acts accordingly.
+	// Distribution is how Nimbo was installed: "binary" (nimbo serve), "desktop" (Nimbo.exe) or "docker". The updater acts accordingly.
 	Distribution string
 	// DataDir is the folder with settings, progress and statistics (NIMBO_DATA_DIR or ~/.nimbo).
 	DataDir string
@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 }
 
 // ConfigFromEnv reads the same variables as the Kotlin NimboConfig: NIMBO_PORT, NIMBO_API_TOKEN, NIMBO_HOST,
-// NIMBO_EMULATOR_HOST, NIMBO_ALLOWED_HOSTS, NIMBO_DISTRIBUTION (jar, desktop or docker), NIMBO_DATA_DIR and
+// NIMBO_EMULATOR_HOST, NIMBO_ALLOWED_HOSTS, NIMBO_DISTRIBUTION (binary, desktop or docker), NIMBO_DATA_DIR and
 // NIMBO_DOCKER_BIN. Blank values fall back to the defaults. home is the user's home folder.
 func ConfigFromEnv(env map[string]string, home string) Config {
 	c := DefaultConfig()
@@ -61,7 +61,7 @@ func ConfigFromEnv(env map[string]string, home string) Config {
 		c.EmulatorHost = env["NIMBO_EMULATOR_HOST"]
 	}
 	switch d := env["NIMBO_DISTRIBUTION"]; d {
-	case "jar", "desktop", "docker":
+	case "binary", "desktop", "docker":
 		c.Distribution = d
 	}
 	seen := map[string]bool{}

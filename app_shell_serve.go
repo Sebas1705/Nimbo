@@ -59,7 +59,7 @@ func runServe(args []string, environ []string, stdout io.Writer) int {
 		logger.Printf("Listening on %s: publish the port on loopback only (-p 127.0.0.1:%d:%d); Nimbo can control Docker.", *host, plan.Port, plan.Port)
 	}
 
-	api, closer := buildAPI(env, home, firstNonBlank(env["NIMBO_DISTRIBUTION"], "jar"), *host, plan.Port)
+	api, closer := buildAPI(env, home, firstNonBlank(env["NIMBO_DISTRIBUTION"], "binary"), *host, plan.Port)
 	srv := &http.Server{
 		Handler:           serveRouter(api, uiFS(), parseAllowedHosts(env)),
 		ReadHeaderTimeout: 10 * time.Second,
