@@ -271,13 +271,14 @@ export function App() {
           </div>
         )}
 
-        <header className="page-head">
-          <p className="eyebrow">{t(groupOf(current))}</p>
-          <h1>{isGuide ? t('heroTitle') : t(item.label)}</h1>
-          <p className="purpose">{isGuide ? t('heroBody') : t(item.purpose)}</p>
-        </header>
-
-        <HelpBox key={`${current}-${lang}`} tab={current} lang={lang} t={t} />
+        <div className="page-top">
+          <header className="page-head">
+            <p className="eyebrow">{t(groupOf(current))}</p>
+            <h1>{isGuide ? t('heroTitle') : t(item.label)}</h1>
+            <p className="purpose">{isGuide ? t('heroBody') : t(item.purpose)}</p>
+          </header>
+          <HelpBox key={`${current}-${lang}`} tab={current} lang={lang} t={t} />
+        </div>
 
         {current === 'guide' && (
           <GuideView
