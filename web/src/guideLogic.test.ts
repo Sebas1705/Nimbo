@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DockerStatus, Provider } from './api'
-import { extraPorts, primaryPort, recipeStatus, runningCount, stepStatus } from './guideLogic'
+import { extraPorts, primaryPort, recipeStatus, runningCount, stackErrors, stepStatus } from './guideLogic'
 import { applyTheme, helpOpen, helpUnseen, loadTheme, nextTheme, readPref, setHelpOpen, writePref } from './prefs'
 
 const prov = (id: string, state: Provider['state'], ports: number[] = [1000]): Provider => ({
@@ -148,5 +148,30 @@ describe('preferences', () => {
     expect(() => writePref('x', '1')).not.toThrow()
     expect(helpOpen('guide')).toBe(false)
     expect(loadTheme()).toBe('auto')
+  })
+})
+
+describe('stackErrors', () => {
+  const ok = { id: 'my-api', description: '', providers: ['redis'], isNew: true }
+
+  it('accepts what the server accepts', () => {
+    expect(stackErrors('en', ok)).toEqual({})
+    expect(stackErrors('en', { ...ok, id: 'a'.repeat(41) })).toEqual({})
+    expect(stackErrors('en', { ...ok, description: 'x'.repeat(200) })).toEqual({})
+  })
+
+  it('rejects names the server would reject', () => {
+    for (const id of ['', '  ', '-api', 'My-Api', 'my_api', 'a b', 'a'.repeat(42)]) {
+      expect(stackErrors('en', { ...ok, id }).id, id).toBeTruthy()
+    }
+  })
+
+  it('does not check the name of a stack that is only being edited', () => {
+    expect(stackErrors('en', { ...ok, id: '', isNew: false })).toEqual({})
+  })
+
+  it('wants one emulator and a description of at most 200 characters', () => {
+    expect(stackErrors('es', { ...ok, providers: [] }).providers).toBeTruthy()
+    expect(stackErrors('es', { ...ok, description: 'x'.repeat(201) }).description).toContain('200')
   })
 })

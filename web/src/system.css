@@ -1,0 +1,4 @@
+/* What the drawers and notes of System.tsx, Panels.tsx and ProviderGuide.tsx need beyond the shared kit. */
+.panel > .notice { margin: 10px 18px 0; }
+.panel:has(.guide-body) { width: min(660px, 100%); }
+.sys .notice code { background: none; padding: 0; }

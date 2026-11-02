@@ -19,6 +19,8 @@ import { NAV, groupOf, itemOf, startTab, type TabId } from './nav'
 import { applyTheme, loadTheme, nextTheme, readPref, writePref, type Theme } from './prefs'
 import { ActivityView, OfflineView, SettingsView, UpdatesView } from './System'
 import { updateDot } from './systemLogic'
+import { Notice, message, pollInterval, usePolling } from './ui'
+import './screens.css'
 
 function initialLang(): Lang {
   const saved = readPref('lang')
@@ -67,10 +69,11 @@ export function App() {
 
   useEffect(() => {
     api.health().then((h) => setVersion(h.version ?? null)).catch(() => {})
-    refresh()
-    const id = setInterval(refresh, 3000)
-    return () => clearInterval(id)
-  }, [refresh])
+  }, [])
+
+  // Asks what is running often where that is the screen, rarely elsewhere or with Docker down, and not at all while the
+  // window is hidden.
+  usePolling(refresh, pollInterval({ tab: tab ?? firstTab ?? 'guide', dockerUp: docker?.available !== false }))
 
   // Settings live in the data folder; the browser copy only makes the first paint right. The server wins once it has an answer.
   useEffect(() => {
@@ -113,14 +116,6 @@ export function App() {
   }, [lang])
 
   const act = async (p: Provider, action: ProviderAction) => {
-    if (action === 'deleteData') {
-      const ok = window.confirm(
-        lang === 'es'
-          ? `Se borrarán para siempre los datos guardados de ${p.name}. ¿Continuar?`
-          : `The saved data of ${p.name} will be deleted for good. Continue?`,
-      )
-      if (!ok) return
-    }
     setBusy((b) => new Set(b).add(p.id))
     setErrors((e) => ({ ...e, [p.id]: '' }))
     try {
@@ -133,7 +128,7 @@ export function App() {
       }
       else await api[action](p.id)
     } catch (e) {
-      setErrors((prev) => ({ ...prev, [p.id]: e instanceof Error ? e.message : String(e) }))
+      setErrors((prev) => ({ ...prev, [p.id]: message(e) }))
     } finally {
       setBusy((b) => {
         const n = new Set(b)
@@ -151,7 +146,7 @@ export function App() {
       try {
         await api.start(id)
       } catch (e) {
-        failure = `${id}: ${e instanceof Error ? e.message : String(e)}`
+        failure = `${id}: ${message(e)}`
         break
       }
     }
@@ -177,7 +172,7 @@ export function App() {
       const result = await api[action](s.id)
       setStackErrors((e) => ({ ...e, [s.id]: failures(result).join(' · ') }))
     } catch (e) {
-      setStackErrors((prev) => ({ ...prev, [s.id]: e instanceof Error ? e.message : String(e) }))
+      setStackErrors((prev) => ({ ...prev, [s.id]: message(e) }))
     } finally {
       setStackBusy(null)
       refresh()
@@ -266,9 +261,7 @@ export function App() {
 
       <main id="main" className="stage" tabIndex={-1}>
         {docker && !docker.available && (
-          <div className="banner" role="alert">
-            {t('dockerHint')}
-          </div>
+          <Notice>{t('dockerHint')}</Notice>
         )}
 
         <div className="page-top">
@@ -322,10 +315,10 @@ export function App() {
         {current === 'registry' && (
           <RegistryView t={t} lang={lang} docker={docker} providers={providers} onChanged={refresh} go={go} focusImage={registryFocus} />
         )}
-        {current === 'inspector' && <InspectorView t={t} />}
-        {current === 'kube' && <KubeView t={t} />}
-        {current === 'traces' && <TracesView t={t} />}
-        {current === 'chaos' && <ChaosView t={t} />}
+        {current === 'inspector' && <InspectorView t={t} lang={lang} />}
+        {current === 'kube' && <KubeView t={t} lang={lang} />}
+        {current === 'traces' && <TracesView t={t} lang={lang} />}
+        {current === 'chaos' && <ChaosView t={t} lang={lang} />}
         {current === 'labs' && <LabsView t={t} lang={lang} focus={labFocus} />}
         {current === 'fidelity' && <FidelityView t={t} />}
         {current === 'activity' && <ActivityView t={t} lang={lang} />}
@@ -334,7 +327,7 @@ export function App() {
         {current === 'offline' && <OfflineView t={t} lang={lang} />}
       </main>
 
-      {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}
+      {panel && <SidePanel panel={panel} t={t} lang={lang} onClose={() => setPanel(null)} />}
       {exporting && <ExportPanel stack={exporting} t={t} lang={lang} hasAws={exporting.providers.includes('floci-aws')} onClose={() => setExporting(null)} />}
       {guideProvider && (
         <ProviderGuidePanel

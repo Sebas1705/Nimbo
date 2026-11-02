@@ -1,5 +1,7 @@
 import type { DockerStatus, Provider } from './api'
+import type { Lang } from './i18n'
 import type { Recipe } from './guides'
+import { pick } from './ui'
 
 export type RecipeState = 'idle' | 'partial' | 'up'
 
@@ -47,4 +49,21 @@ export function stepStatus(docker: DockerStatus | null, providers: Provider[]): 
 
 export function runningCount(providers: Provider[]): number {
   return providers.filter((p) => p.state === 'running').length
+}
+
+/** Same rules as the server: a lowercase name of up to 41 characters, at least one emulator, a short description. */
+export const STACK_NAME = /^[a-z0-9][a-z0-9-]{0,40}$/
+export const STACK_DESCRIPTION_MAX = 200
+
+/** What is wrong with a stack draft, by field; empty when it can be saved. */
+export function stackErrors(lang: Lang, d: { id: string; description: string; providers: string[]; isNew: boolean }): Record<string, string> {
+  const errors: Record<string, string> = {}
+  if (d.isNew && !STACK_NAME.test(d.id.trim())) {
+    errors.id = d.id.trim()
+      ? pick(lang, 'Usa minúsculas, números y guiones; empieza por letra o número; hasta 41 caracteres.', 'Use lowercase letters, numbers and dashes; start with a letter or number; up to 41 characters.')
+      : pick(lang, 'Pon un nombre al stack.', 'Give the stack a name.')
+  }
+  if (d.providers.length === 0) errors.providers = pick(lang, 'Elige al menos un emulador.', 'Pick at least one emulator.')
+  if (d.description.trim().length > STACK_DESCRIPTION_MAX) errors.description = pick(lang, `Como máximo ${STACK_DESCRIPTION_MAX} caracteres.`, `At most ${STACK_DESCRIPTION_MAX} characters.`)
+  return errors
 }

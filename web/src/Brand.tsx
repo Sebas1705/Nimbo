@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api, tokenStore } from './api'
 import type { Key } from './i18n'
+import { Feedback } from './ui'
 
 export function Logo({ size = 34 }: { size?: number }) {
   return (
@@ -40,7 +41,7 @@ export function TokenGate({ t, onDone }: { t: (k: Key) => string; onDone: () => 
         <h1>{t('tokenTitle')}</h1>
         <p>{t('tokenBody')}</p>
         <input type="password" autoFocus value={value} onChange={(e) => setValue(e.target.value)} aria-label="token" />
-        {bad && <p className="err">{t('unauthorized')}</p>}
+        <Feedback error={bad ? t('unauthorized') : ''} />
         <button className="primary" type="submit">
           {t('tokenSave')}
         </button>

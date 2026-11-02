@@ -1,5 +1,6 @@
 import type { ComposeDef, ComposeFileStatus, ComposeFileRef, SourceDef } from './api'
 import type { Lang } from './i18n'
+import type { Tone } from './ui/text'
 
 /**
  * Pure rules of the Registry screen. The validation mirrors what the server checks (see REGISTRY.md), so people see the
@@ -228,7 +229,7 @@ export function sourceBody(d: SourceDraft) {
   return d.kind === 'local' ? { kind: 'local' as const, path: d.path.trim() } : { kind: 'git' as const, url: d.url.trim(), branch: d.branch.trim() || null }
 }
 
-export type Tone = 'ok' | 'warn' | 'bad' | 'idle'
+export type { Tone }
 
 export function sourceTone(s: SourceDef['status']): Tone {
   return s === 'ok' ? 'ok' : s === 'error' || s === 'missing' ? 'bad' : 'warn'
