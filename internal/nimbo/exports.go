@@ -101,17 +101,27 @@ func ExportAwsCliProfile(chaos bool) string {
 		"aws_secret_access_key = test\n"
 }
 
-type ExportFormat struct{ ID, Filename string }
+// ExportFormat is one kind of file Nimbo can write for a stack. NeedsAWS formats only make sense with floci-aws.
+type ExportFormat struct {
+	ID, Filename string
+	NeedsAWS     bool
+}
 
 var (
-	ExportFormatEnv    = ExportFormat{"env", "nimbo.env"}
-	ExportFormatTofu   = ExportFormat{"tofu", "nimbo_override.tf"}
-	ExportFormatAwsCli = ExportFormat{"awscli", "aws-config-nimbo.ini"}
+	ExportFormatEnv        = ExportFormat{"env", "nimbo.env", false}
+	ExportFormatCompose    = ExportFormat{"compose", "docker-compose.yml", false}
+	ExportFormatComposeEnv = ExportFormat{"composeenv", ".env", false}
+	ExportFormatSpring     = ExportFormat{"spring", "application-nimbo.yml", false}
+	ExportFormatDotnet     = ExportFormat{"dotnet", "appsettings.Nimbo.json", false}
+	ExportFormatTofu       = ExportFormat{"tofu", "nimbo_override.tf", true}
+	ExportFormatAwsCli     = ExportFormat{"awscli", "aws-config-nimbo.ini", true}
 )
+
+var exportFormats = []ExportFormat{ExportFormatEnv, ExportFormatCompose, ExportFormatComposeEnv, ExportFormatSpring, ExportFormatDotnet, ExportFormatTofu, ExportFormatAwsCli}
 
 // ExportFormatOf finds a format by its id.
 func ExportFormatOf(id string) (ExportFormat, bool) {
-	for _, f := range []ExportFormat{ExportFormatEnv, ExportFormatTofu, ExportFormatAwsCli} {
+	for _, f := range exportFormats {
 		if f.ID == id {
 			return f, true
 		}

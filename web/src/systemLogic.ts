@@ -57,6 +57,9 @@ export function describeEntry(e: JournalEntry, lang: Lang): string {
     case 'update.install': return es ? `Instaló la versión ${e.subject}` : `Installed version ${e.subject}`
     case 'images.load': return es ? `Cargó el paquete de imágenes ${e.subject}` : `Loaded the image pack ${e.subject}`
     case 'images.pull': return es ? `Descargó la imagen de ${e.subject}` : `Pulled the image of ${e.subject}`
+    case 'secret.reveal': return es ? `Mostró el valor de ${e.subject}` : `Revealed the value of ${e.subject}`
+    case 'variables.init': return es ? `Inicializó las variables de ${e.subject}` : `Initialized the variables of ${e.subject}`
+    case 'variables.apply': return es ? `Aplicó las variables a ${e.subject}` : `Applied the variables to ${e.subject}`
     case 'settings.change': return es ? 'Cambió los ajustes' : 'Changed the settings'
     case 'data.import': return es ? 'Restauró una copia de seguridad' : 'Restored a backup'
     default: return `${e.kind} ${e.subject}`

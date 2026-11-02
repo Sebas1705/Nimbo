@@ -250,12 +250,12 @@ func (d *DataRoutes) generateSecret(w http.ResponseWriter, r *http.Request) erro
 	if !isSecretName(name) {
 		return UnknownTarget{"Unknown secret '" + name + "'"}
 	}
-	if !IsSecretPassword(name) {
-		return InvalidParam{"Only passwords are generated: choose the user yourself"}
-	}
-	value, err := GenerateSecret()
+	value, err := GenerateFor(*varSpecByName(name))
 	if err != nil {
 		return err
+	}
+	if value == "" {
+		return InvalidParam{"This one is not generated: choose its value yourself"}
 	}
 	if err := d.Secrets.Set(coreDetached(r), name, value); err != nil {
 		return err

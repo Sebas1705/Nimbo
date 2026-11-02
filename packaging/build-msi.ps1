@@ -31,7 +31,8 @@ try {
         -out (Join-Path $work "nimbo.wixobj") (Join-Path $root "packaging\nimbo.wxs")
     if ($LASTEXITCODE -ne 0) { throw "candle failed" }
     New-Item -ItemType Directory -Force (Split-Path -Parent (Join-Path (Get-Location) $Out)) | Out-Null
-    & $light -nologo -ext WixUtilExtension -sval -out (Join-Path (Get-Location) $Out) (Join-Path $work "nimbo.wixobj")
+    # The .wixpdb (debug data of the installer) goes to the work folder: next to the .msi it would be published with it.
+    & $light -nologo -ext WixUtilExtension -sval -pdbout (Join-Path $work "nimbo.wixpdb") -out (Join-Path (Get-Location) $Out) (Join-Path $work "nimbo.wixobj")
     if ($LASTEXITCODE -ne 0) { throw "light failed" }
     Write-Host "wrote $Out"
 }

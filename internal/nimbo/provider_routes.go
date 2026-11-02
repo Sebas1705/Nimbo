@@ -3,6 +3,7 @@ package nimbo
 import (
 	"context"
 	"net/http"
+	"strings"
 )
 
 // ProviderRoutes start, stop and inspect the providers. Starting uses the saved secrets and the data setting of each
@@ -50,7 +51,7 @@ func coreProviderDto(def ProviderDef, state RunState, detail *string, persist, h
 	return ProviderDto{
 		ID: def.ID, Name: def.Name, Cloud: string(def.Cloud), Description: def.Description, Image: def.Image,
 		Ports: def.Ports, State: string(state), Detail: detail,
-		Persistable: def.Persist != nil, Persist: persist, HasData: hasData,
+		Persistable: def.Persist != nil, Persist: persist, HasData: hasData, NeedsSetup: []string{},
 	}
 }
 
@@ -84,7 +85,9 @@ func (p *ProviderRoutes) list(w http.ResponseWriter, r *http.Request) error {
 				state = StateStopped
 			}
 		}
-		out = append(out, coreProviderDto(def, state, detail, persisting[def.ID], saved[def.ID]))
+		dto := coreProviderDto(def, state, detail, persisting[def.ID], saved[def.ID])
+		dto.NeedsSetup = MissingRequired(def, VarSources(r.Context(), def, p.Config.HostEnv, p.Secrets))
+		out = append(out, dto)
 	}
 	WriteJSON(w, http.StatusOK, out)
 	return nil
@@ -199,18 +202,21 @@ func (p *ProviderRoutes) env(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	dotenv := ""
-	for i, kv := range def.Endpoints {
+	// With ?secrets=true the real values are included (the page asks when you press the button); otherwise the secrets
+	// show as <NAME> placeholders so the text is safe to paste anywhere.
+	reveal := Query(r, "secrets") == "true"
+	vars := clientVars(def, ResolveVars(r.Context(), def, p.Config.HostEnv, p.Secrets), reveal)
+	if reveal {
+		p.Data.Stats.Record("secret.reveal", def.ID, "environment variables")
+	}
+	var dotenv strings.Builder
+	for i, kv := range vars {
 		if i > 0 {
-			dotenv += "\n"
+			dotenv.WriteString("\n")
 		}
-		dotenv += kv.Key + "=" + kv.Value
+		dotenv.WriteString(kv.Key + "=" + kv.Value)
 	}
-	endpoints := def.Endpoints
-	if endpoints == nil {
-		endpoints = Vars{}
-	}
-	WriteJSON(w, http.StatusOK, EnvDto{ID: def.ID, Variables: endpoints, Dotenv: dotenv})
+	WriteJSON(w, http.StatusOK, EnvDto{ID: def.ID, Variables: vars, Dotenv: dotenv.String()})
 	return nil
 }
 
@@ -225,6 +231,8 @@ type StackRoutes struct {
 
 func (s *StackRoutes) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/stacks", Handle(s.list))
+	mux.HandleFunc("PUT /api/stacks/{id}", Handle(s.save))
+	mux.HandleFunc("DELETE /api/stacks/{id}", Handle(s.remove))
 	mux.HandleFunc("POST /api/stacks/{id}/up", Handle(s.up))
 	mux.HandleFunc("POST /api/stacks/{id}/down", Handle(s.down))
 	mux.HandleFunc("GET /api/stacks/{id}/export", Handle(s.export))
@@ -249,11 +257,12 @@ func coreStackDto(st StackDef, live map[string]ContainerInfo) StackDto {
 
 func (s *StackRoutes) stack(r *http.Request) (StackDef, error) {
 	id := Param(r, "id")
-	st := s.Stacks.Find(id)
-	if st == nil {
-		return StackDef{}, UnknownTarget{"Unknown stack '" + id + "'"}
+	for _, st := range s.allStacks() {
+		if st.ID == id {
+			return st, nil
+		}
 	}
-	return *st, nil
+	return StackDef{}, UnknownTarget{"Unknown stack '" + id + "'"}
 }
 
 func coreStepResult(id string, err error) StepResultDto {
@@ -268,9 +277,13 @@ func (s *StackRoutes) list(w http.ResponseWriter, r *http.Request) error {
 	if s.Runtime.Status(r.Context()).Available {
 		live = s.Runtime.Containers(r.Context())
 	}
-	stacks := make([]StackDto, 0, len(s.Stacks.Stacks))
-	for _, st := range s.Stacks.Stacks {
-		stacks = append(stacks, coreStackDto(st, live))
+	mine := s.custom()
+	all := s.allStacks()
+	stacks := make([]StackDto, 0, len(all))
+	for _, st := range all {
+		dto := coreStackDto(st, live)
+		dto.Custom = mine.has(st.ID)
+		stacks = append(stacks, dto)
 	}
 	problems := s.Stacks.Problems
 	if problems == nil {
@@ -338,7 +351,7 @@ func (s *StackRoutes) export(w http.ResponseWriter, r *http.Request) error {
 	}
 	format, ok := ExportFormatOf(Query(r, "format"))
 	if !ok {
-		return InvalidParam{"format must be env, tofu or awscli"}
+		return InvalidParam{"format must be one of: " + strings.Join(sortedFormatIDs(), ", ")}
 	}
 	var defs []ProviderDef
 	hasAWS := false
@@ -348,19 +361,33 @@ func (s *StackRoutes) export(w http.ResponseWriter, r *http.Request) error {
 			hasAWS = hasAWS || id == "floci-aws"
 		}
 	}
-	if format != ExportFormatEnv && !hasAWS {
+	if format.NeedsAWS && !hasAWS {
 		WriteJSON(w, http.StatusConflict, ErrorDto{"Stack '" + stack.ID + "' has no AWS emulator (floci-aws)"})
 		return nil
 	}
 	chaos := Query(r, "chaos") == "true"
+	// The real passwords are in a file only when the page asks for them (a deliberate button), and that is journaled.
+	reveal := Query(r, "secrets") == "true"
+	values := exportValues(r.Context(), defs, s.Config.HostEnv, s.Secrets, reveal)
 	var content string
 	switch format {
 	case ExportFormatEnv:
 		content = ExportEnv(defs, chaos)
+	case ExportFormatCompose:
+		content = ExportCompose(stack.ID, defs, values, Query(r, "persist") == "true")
+	case ExportFormatComposeEnv:
+		content = ExportComposeEnv(defs, values)
+	case ExportFormatSpring:
+		content = ExportSpring(defs, values)
+	case ExportFormatDotnet:
+		content = ExportDotnet(defs, values)
 	case ExportFormatTofu:
 		content = ExportTofuAwsOverride(chaos)
 	default:
 		content = ExportAwsCliProfile(chaos)
+	}
+	if reveal {
+		s.Data.Stats.Record("secret.reveal", stack.ID, "export "+format.ID)
 	}
 	s.Data.Stats.Record("export", stack.ID, format.ID)
 	WriteJSON(w, http.StatusOK, ExportDto{Format: format.ID, Filename: format.Filename, Content: content})

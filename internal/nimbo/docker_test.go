@@ -132,9 +132,11 @@ func TestPersistenceArgs(t *testing.T) {
 
 	redis := *CatalogFind("redis")
 	ra := BuildRunArgs(redis, coreArgsEnv, true)
-	coreTrue(t, reflect.DeepEqual([]string{"redis-server", "--appendonly", "yes"}, ra[len(ra)-3:]))
+	coreTrue(t, reflect.DeepEqual([]string{"sh", "-c", redisStartScript(true)}, ra[len(ra)-3:]))
+	coreTrue(t, strings.Contains(redisStartScript(true), "--appendonly yes"))
 	rb := BuildRunArgs(redis, coreArgsEnv, false)
-	coreEq(t, "redis:7-alpine", rb[len(rb)-1], "no command override without persistence")
+	coreTrue(t, reflect.DeepEqual([]string{"sh", "-c", redisStartScript(false)}, rb[len(rb)-3:]))
+	coreTrue(t, !strings.Contains(redisStartScript(false), "--appendonly"))
 
 	f := BuildRunArgs(*CatalogFind("floci-aws"), coreArgsEnv, true)
 	coreTrue(t, coreHas(f, "FLOCI_STORAGE_MODE=hybrid") && coreHas(f, "FLOCI_STORAGE_PERSISTENT_PATH=/app/data"))
@@ -228,4 +230,14 @@ func TestDockerUnavailableMeansNoDataAndNoContainers(t *testing.T) {
 	coreEq(t, 0, len(rt.SavedData(context.Background())))
 	_, found := rt.Containers(context.Background())["postgres"]
 	coreTrue(t, !found)
+}
+
+func TestStartExplainsWhichSettingsAreMissingAndHowToFixIt(t *testing.T) {
+	d := &coreDocker{}
+	err := NewCliContainerRuntime(d).Start(context.Background(), *CatalogFind("postgres"), map[string]string{}, false)
+	coreTrue(t, err != nil)
+	coreContains(t, err.Error(), "NIMBO_POSTGRES_PASSWORD")
+	coreContains(t, err.Error(), "Initialize them in Nimbo")
+	coreTrue(t, !strings.Contains(err.Error(), "NIMBO_POSTGRES_USER"), "optional settings are never demanded")
+	coreEq(t, 0, len(d.calls), "docker is not called when something is missing")
 }

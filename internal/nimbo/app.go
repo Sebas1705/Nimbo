@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"time"
@@ -92,12 +93,13 @@ func NewServer(cfg Config, deps Deps) http.Handler {
 	(&ProviderRoutes{Config: cfg, Runtime: deps.Runtime, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	(&StackRoutes{Config: cfg, Runtime: deps.Runtime, Stacks: deps.Stacks, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	(&DataRoutes{Data: deps.Data, Secrets: deps.Secrets, Config: cfg}).Register(mux)
+	(&VariableRoutes{Config: cfg, Runtime: deps.Runtime, Data: deps.Data, Secrets: deps.Secrets}).Register(mux)
 	for _, register := range deps.Routes {
 		register(mux)
 	}
 	mux.Handle("/", coreUIHandler(deps.UI))
 
-	return coreRecover(coreHostGuard(cfg, coreAPIToken(cfg, mux)))
+	return coreRecover(coreHostGuard(cfg, coreOriginGuard(cfg, coreAPIToken(cfg, mux))))
 }
 
 // coreRecover answers 500 without leaking details, like the catch-all of the Kotlin StatusPages block.
@@ -143,6 +145,32 @@ func coreHostGuard(cfg Config, next http.Handler) http.Handler {
 		if !coreLoopbackHosts[host] && !allowed[host] {
 			WriteJSON(w, http.StatusForbidden, ErrorDto{"Host not allowed"})
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// webviewOrigin is how the desktop window names itself. It is not a network name: only the window reaches the API
+// through it.
+const coreWebviewOrigin = "wails.localhost"
+
+// coreOriginGuard refuses a request that changes something when a web page from another site sent it. A browser
+// always tells where a page came from (Origin), so a page that is not Nimbo's own, or the desktop window, cannot make
+// your browser start containers, read a secret or delete data. Requests with no Origin (curl, scripts, the tests of
+// your own tools) are not browsers and pass.
+func coreOriginGuard(cfg Config, next http.Handler) http.Handler {
+	allowed := map[string]bool{coreWebviewOrigin: true}
+	for _, h := range cfg.AllowedHosts {
+		allowed[strings.ToLower(h)] = true
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+			u, err := url.Parse(origin)
+			same := err == nil && (strings.EqualFold(u.Host, r.Host) || allowed[strings.ToLower(u.Hostname())])
+			if !same {
+				WriteJSON(w, http.StatusForbidden, ErrorDto{"Cross-origin request refused"})
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

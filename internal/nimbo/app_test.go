@@ -27,8 +27,8 @@ func TestCatalogIdsAndPorts(t *testing.T) {
 
 func TestCatalogSecretsByNameOnly(t *testing.T) {
 	for _, d := range CatalogProviders {
-		for _, kv := range d.SecretEnv {
-			coreTrue(t, strings.HasPrefix(kv.Value, "NIMBO_"), d.ID, kv.Value)
+		for _, v := range d.Vars {
+			coreTrue(t, strings.HasPrefix(v.Name, "NIMBO_"), d.ID, v.Name)
 		}
 		for _, kv := range d.ContainerEnv {
 			coreTrue(t, !strings.Contains(strings.ToLower(kv.Value), "password"), d.ID)

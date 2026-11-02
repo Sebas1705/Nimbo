@@ -493,7 +493,8 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
     points: [
       t('Un stack es un grupo de proveedores que se arrancan juntos. Un proveedor es un contenedor: un emulador, una base de datos, un clúster.', 'A stack is a group of providers started together. A provider is one container: an emulator, a database, a cluster.'),
       t('Pulsa "Guía" en cualquier proveedor para ver dónde escucha, qué comandos usar y qué límites tiene.', 'Press "Guide" on any provider to see where it listens, which commands to use and what its limits are.'),
-      t('"Exportar" en un stack genera las variables de entorno, el override de OpenTofu o el perfil del AWS CLI para conectar tu código.', '"Export" on a stack generates the environment variables, the OpenTofu override or the AWS CLI profile to connect your code.'),
+      t('"Exportar" en un stack escribe archivos de configuración ya rellenos: un docker-compose.yml con su .env para levantarlo sin Nimbo, y ficheros para conectar tu aplicación (variables, Spring Boot, .NET, OpenTofu, AWS CLI).', '"Export" on a stack writes configuration files already filled in: a docker-compose.yml with its .env to run it without Nimbo, and files to connect your application (variables, Spring Boot, .NET, OpenTofu, AWS CLI).'),
+      t('"+ Crear un stack" te deja elegir los emuladores que quieres levantar juntos y guardarlos con un nombre. Los stacks propios se pueden editar y borrar; los que vienen con Nimbo no.', '"+ Create a stack" lets you pick the emulators you want to bring up together and save them under a name. Your own stacks can be edited and deleted; the ones that come with Nimbo cannot.'),
     ],
   },
   inspector: {
@@ -547,7 +548,8 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
   settings: {
     points: [
       t('"Conservar datos" se activa por emulador, en Infraestructura: sus datos viven en un volumen de Docker y sobreviven a parar o eliminar el contenedor. Borrarlos es una acción aparte.', '"Keep data" is switched on per emulator, in Infrastructure: its data lives in a Docker volume and survives stopping or removing the container. Deleting it is a separate action.'),
-      t('Las contraseñas de MinIO y PostgreSQL se guardan cifradas con tu usuario de Windows. Si ya las defines con una variable de entorno, esa gana. Con PostgreSQL conservado, la contraseña queda fijada al crearlo: cambiarla aquí no cambia la base existente.', 'The MinIO and PostgreSQL passwords are stored encrypted for your Windows user. If you already set them with an environment variable, that one wins. With PostgreSQL data kept, its password is fixed when it is created: changing it here does not change the existing database.'),
+      t('Cada emulador que lo admite tiene sus variables (contraseñas, usuarios, claves): se guardan cifradas con tu usuario de Windows y una variable de entorno con el mismo nombre gana. "Inicializar" genera las que faltan, "Mostrar" las enseña a petición y "Aplicar" recrea el emulador en marcha con los valores nuevos, conservando sus datos.', 'Every emulator that supports it has its variables (passwords, users, keys): they are stored encrypted for your Windows user and an environment variable with the same name wins. "Initialize" makes the missing ones, "Show" reveals them on request and "Apply" recreates the running emulator with the new values, keeping its data.'),
+      t('Con PostgreSQL conservado, usuario, base y contraseña quedan fijados al crear los datos: cambiarlos aquí no cambia la base existente.', 'With PostgreSQL data kept, its user, database and password are fixed when the data is created: changing them here does not change the existing database.'),
       t('La copia de seguridad incluye ajustes, progreso, estadísticas e historial, nunca las contraseñas ni los datos de los emuladores.', 'The backup holds settings, progress, statistics and history, never the passwords or the emulator data.'),
     ],
   },
@@ -565,6 +567,45 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
     ],
   },
 }
+
+/** What each emulator setting is and how to use it, in both languages. A test checks that every setting of the catalog is here. */
+export const VAR_HELP: Record<string, { label: L10n; help: L10n }> = {
+  NIMBO_MINIO_USER: {
+    label: t('Usuario de MinIO', 'MinIO user'),
+    help: t('El usuario administrador. Sirve también como access key de cualquier cliente S3.', 'The admin user. It also works as the access key of any S3 client.'),
+  },
+  NIMBO_MINIO_PASSWORD: {
+    label: t('Contraseña de MinIO', 'MinIO password'),
+    help: t('Mínimo 8 caracteres. Sirve también como secret key de cualquier cliente S3.', 'At least 8 characters. It also works as the secret key of any S3 client.'),
+  },
+  NIMBO_POSTGRES_PASSWORD: {
+    label: t('Contraseña de PostgreSQL', 'PostgreSQL password'),
+    help: t('Se fija al crear la base de datos: si conservas datos, cambiarla aquí no cambia la que ya existe.', 'It is fixed when the database is created: if you keep data, changing it here does not change the existing one.'),
+  },
+  NIMBO_POSTGRES_USER: {
+    label: t('Usuario de PostgreSQL', 'PostgreSQL user'),
+    help: t('Opcional. Sin valor se usa postgres. Solo se aplica al crear los datos por primera vez.', 'Optional. Without a value postgres is used. It only applies when the data is first created.'),
+  },
+  NIMBO_POSTGRES_DB: {
+    label: t('Base de datos de PostgreSQL', 'PostgreSQL database'),
+    help: t('Opcional. Nombre de la base que se crea al inicio. Solo se aplica al crear los datos por primera vez.', 'Optional. Name of the database created at the start. It only applies when the data is first created.'),
+  },
+  NIMBO_REDIS_PASSWORD: {
+    label: t('Contraseña de Redis', 'Redis password'),
+    help: t('Opcional. Si la defines, Redis exige AUTH y REDIS_URL incluye la contraseña. Mínimo 8 caracteres, sin espacios.', 'Optional. If you set it, Redis requires AUTH and REDIS_URL includes the password. At least 8 characters, no spaces.'),
+  },
+  NIMBO_K3S_TOKEN: {
+    label: t('Token de Kubernetes (k3s)', 'Kubernetes (k3s) token'),
+    help: t('Opcional. El secreto que usan otros nodos para unirse al clúster; sin él k3s genera uno al arrancar.', 'Optional. The secret other nodes use to join the cluster; without it k3s makes one at start.'),
+  },
+  NIMBO_AZURITE_ACCOUNTS: {
+    label: t('Cuenta de Azurite', 'Azurite account'),
+    help: t('Opcional. Formato nombre:clave (la clave en base64). Sin ella Azurite usa su cuenta de desarrollo conocida, devstoreaccount1.', 'Optional. Format name:key (the key in base64). Without it Azurite uses its well-known development account, devstoreaccount1.'),
+  },
+}
+
+/** Emulators with nothing to configure say so, instead of leaving a blank. */
+export const NO_VARS_NOTE: L10n = t('No necesita contraseñas ni claves: acepta cualquier credencial.', 'It needs no passwords or keys: it accepts any credential.')
 
 /** Short stack descriptions in both languages for the stacks that ship; user-defined stacks keep their own text. */
 export const STACK_BLURBS: Record<string, L10n> = {
