@@ -44,7 +44,7 @@ func (c *CustomStacks) List() []StackDef {
 		// A restored or hand-edited file may name an emulator this version does not have: those are left out.
 		var known []string
 		for _, id := range s.Providers {
-			if CatalogFind(id) != nil {
+			if FindProvider(id) != nil {
 				known = append(known, id)
 			}
 		}
@@ -69,7 +69,7 @@ func (c *CustomStacks) Put(def StackDef, taken func(id string) bool) error {
 	}
 	seen := map[string]bool{}
 	for _, id := range def.Providers {
-		if CatalogFind(id) == nil {
+		if FindProvider(id) == nil {
 			return InvalidParam{"Unknown emulator '" + id + "'"}
 		}
 		if seen[id] {

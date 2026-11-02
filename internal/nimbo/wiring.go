@@ -35,6 +35,8 @@ func Assemble(cfg Config, opts AssembleOptions) (http.Handler, io.Closer) {
 	secrets := DefaultSecretStore(data)
 	runtime := NewCliContainerRuntime(ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")})
 	shell := ProcessShell{Bin: orDefault(cfg.DockerBin, "docker")}
+	// The registry of own images comes first: it publishes them as emulators, and a stack in nimbo.yml may name one.
+	registryImages := NewImageRegistry(data.Store, data, runtime, secrets, env)
 	stacks := LoadStacks(env, opts.Bundled)
 	labs := LoadLabs(env, opts.Bundled)
 
@@ -62,18 +64,23 @@ func Assemble(cfg Config, opts AssembleOptions) (http.Handler, io.Closer) {
 	}
 	updater := NewUpdater(UpdateConfig{Version: cfg.Version, Distribution: cfg.Distribution},
 		updateSettings2{data.Settings}, updateActivity2{data.Stats}, updateStore2{data.Store}, NewHTTPDownloader(), dataDir, updOpts)
-	var refs []ImageProviderRef
-	for _, p := range CatalogProviders {
-		refs = append(refs, ImageProviderRef{ID: p.ID, Image: p.Image})
-	}
 	images := NewImages(runtime2{ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")}}, func() []string {
 		return ImagesSearchFolders(env, dataDir, appDir)
-	}, updateActivity2{data.Stats}, refs, nil)
+	}, updateActivity2{data.Stats}, ImageRefsOfAllProviders(), nil)
+	// Asked every time, so images registered later are listed and can be pulled.
+	images.UseProviders(ImageRefsOfAllProviders)
+
+	// Compose profiles and the repositories their files live in.
+	regRun := ExecRegistryRunner{DockerBin: orDefault(cfg.DockerBin, "docker")}
+	regSources := NewRegistrySources(data.Store, data.Stats, dataDir, regRun)
+	regCompose := NewRegistryCompose(data.Store, data.Stats, regSources, regRun)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	routes := []func(*http.ServeMux){
 		NewUpdateRoutes(updater).Register,
 		NewImageRoutes(images).Register,
+		registryImages.Register,
+		NewRegistryRoutes(regSources, regCompose).Register,
 		inspector.Register,
 		chaos.Register,
 		traces.Register,

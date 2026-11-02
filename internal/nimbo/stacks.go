@@ -109,7 +109,7 @@ func ParseStacks(text string) *StackCatalog {
 		}
 		var unknown []string
 		for _, p := range providers {
-			if CatalogFind(p) == nil {
+			if FindProvider(p) == nil {
 				unknown = append(unknown, p)
 			}
 		}

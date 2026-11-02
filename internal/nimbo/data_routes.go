@@ -201,8 +201,9 @@ func (d *DataRoutes) listSecrets(w http.ResponseWriter, r *http.Request) error {
 	for _, n := range d.Secrets.Names(r.Context()) {
 		set[n] = true
 	}
-	items := make([]SecretItemDto, 0, len(SecretNames))
-	for _, n := range SecretNames {
+	names := AllSecretNames()
+	items := make([]SecretItemDto, 0, len(names))
+	for _, n := range names {
 		items = append(items, SecretItemDto{Name: n, Set: set[n], UsedBy: SecretUsedBy(n), Password: IsSecretPassword(n)})
 	}
 	var reason *string

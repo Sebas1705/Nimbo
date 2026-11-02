@@ -308,7 +308,8 @@ const (
 )
 
 // BackupFiles are the files a backup carries. Secrets are deliberately not among them.
-var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity, FileCustomStacks}
+// The registry (own images, repositories, compose profiles) is part of a backup; the record of the last "up" is not.
+var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity, FileCustomStacks, FileRegistryImages, FileRegistrySources, FileRegistryCompose}
 
 // ---- Settings -----------------------------------------------------------------------------------------------------
 
@@ -390,7 +391,7 @@ func (s *SettingsService) Patch(p SettingsPatch) (Settings, error) {
 func (s *SettingsService) SetPersist(providerID string, enabled bool) (Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	def := CatalogFind(providerID)
+	def := FindProvider(providerID)
 	if def == nil {
 		return Settings{}, UnknownTarget{"Unknown provider '" + providerID + "'"}
 	}
@@ -839,6 +840,12 @@ func validateBackupFile(name, text string) error {
 		opener = '['
 	case FileCustomStacks:
 		target = &customStackFile{}
+	case FileRegistryImages:
+		target = &imageFile{}
+	case FileRegistrySources:
+		target = &registrySourceFile{}
+	case FileRegistryCompose:
+		target = &registryComposeFile{}
 	default:
 		return nil
 	}

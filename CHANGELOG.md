@@ -3,6 +3,15 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [0.4.0]
+
+### Added
+- **The registry** (*Build > Registry*): your own images, the repositories your configuration lives in, and compose profiles.
+  - **Own images** become one more emulator: name, ports (on loopback), variables, secret keys (values live in the encrypted store as `NIMBO_C_<ID>_<KEY>`), command and an optional data volume. They start, stop, keep data, enter stacks, exports and the image status. No privileged mode, host mounts or extra run flags exist in this model, by design.
+  - **Repositories** are a local folder (a clone you already have, read live and never copied) or a Git URL that Nimbo clones into its data folder and updates with `pull --ff-only` (no hooks, no prompts, URL allow-list, no credentials stored). Status shows branch, head, uncommitted changes and how far behind.
+  - **Compose profiles** are saved sets of compose files (+ `--profile` names and an env file) that Nimbo validates, brings up and down with `docker compose`, with state, logs, a live view of each file, and a warning when a file changed since the last *up*. Nimbo only touches projects it created (`nimbo-reg-*`).
+  - Included in backups: images, repositories and profiles (not the record of the last *up*).
+
 ## [0.3.1]
 
 ### Fixed
