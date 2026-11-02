@@ -1,69 +1,61 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ApiError, api, kube, podTone, type KubeOverview, type KubePod, type KubeSample } from './api'
-import type { Key } from './i18n'
+import { useEffect, useState } from 'react'
+import { api, kube, podTone, type KubePod, type KubeSample } from './api'
+import type { Key, Lang } from './i18n'
+import './screens.css'
+import { Card, ConfirmButton, Drawer, EmptyState, Feedback, Notice, Pill, pick, useAction, useCopy, useLoad } from './ui'
 
 type T = (k: Key) => string
 
 const PUBLISHED_NODEPORTS = new Set([30080, 30081, 30082, 30083, 30084])
 const SYSTEM = new Set(['kube-system', 'kube-public', 'kube-node-lease'])
 
-export function KubeView({ t }: { t: T }) {
-  const [data, setData] = useState<KubeOverview | null>(null)
+export function KubeView({ t, lang }: { t: T; lang: Lang }) {
+  const { data, error: loadError, reload } = useLoad(kube.overview, 3000)
   const [namespace, setNamespace] = useState('default')
-  const [starting, setStarting] = useState(false)
-  const [error, setError] = useState('')
   const [logs, setLogs] = useState<KubePod | null>(null)
+  const starter = useAction()
+  const changes = useAction()
 
-  const refresh = useCallback(() => {
-    kube
-      .overview()
-      .then((o) => {
-        setData(o)
-        setError('')
-        if (o.available) setStarting(false)
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-  }, [])
-
+  const available = data?.available === true
+  const starting = starter.busy
+  // The cluster takes a while after the container is up: keep saying so until the API answers.
+  const [waiting, setWaiting] = useState(false)
   useEffect(() => {
-    refresh()
-    const id = setInterval(refresh, 3000)
-    return () => clearInterval(id)
-  }, [refresh])
+    if (available) setWaiting(false)
+  }, [available])
 
-  const start = async () => {
-    setStarting(true)
-    try {
-      await api.start('k3s')
-    } catch (e) {
-      setStarting(false)
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
+  const start = () =>
+    starter
+      .run('', async () => {
+        await api.start('k3s')
+        setWaiting(true)
+      })
+      .then(reload)
 
-  const act = async (fn: () => Promise<unknown>) => {
-    setError('')
-    try {
-      await fn()
-    } catch (e) {
-      setError(e instanceof ApiError || e instanceof Error ? e.message : String(e))
-    } finally {
-      refresh()
-    }
-  }
+  const act = (fn: () => Promise<unknown>) =>
+    changes.run('', async () => {
+      try {
+        await fn()
+      } finally {
+        reload()
+      }
+    })
 
-  if (!data) return <p className="muted">{error || '…'}</p>
+  if (!data) return <Feedback working={loadError ? '' : t('loading')} error={loadError} />
 
   if (!data.available) {
+    const busy = starting || waiting
     return (
       <div className="kube">
-        <div className="banner" role="alert">
-          {starting ? t('kubeStarting') : (data.reason ?? '')}{' '}
-          <button className="primary" disabled={starting} onClick={start}>
-            {starting ? '…' : t('startKube')}
-          </button>
-        </div>
-        {error && <p className="err">{error}</p>}
+        <Notice>
+          <span className="notice-line">
+            {busy ? t('kubeStarting') : (data.reason ?? '')}
+            <button className="primary" disabled={busy} onClick={start}>
+              {busy ? '…' : t('startKube')}
+            </button>
+          </span>
+        </Notice>
+        <Feedback error={starter.error || loadError} />
       </div>
     )
   }
@@ -73,6 +65,17 @@ export function KubeView({ t }: { t: T }) {
   const pods = data.pods.filter((p) => inScope(p.namespace))
   const services = data.services.filter((s) => inScope(s.namespace))
   const nodesReady = data.nodes.filter((n) => n.ready).length
+
+  const remove = (kind: 'pod' | 'deployment' | 'service', ns: string, name: string, label: string) => (
+    <ConfirmButton
+      lang={lang}
+      label={t('delete')}
+      question={pick(lang, `¿Borrar ${label} ${name}?`, `Delete ${label} ${name}?`)}
+      confirmLabel={pick(lang, 'Sí, borrar', 'Yes, delete')}
+      disabled={changes.busy}
+      onConfirm={() => act(() => kube.remove(kind, ns, name))}
+    />
+  )
 
   return (
     <div className="kube">
@@ -96,21 +99,20 @@ export function KubeView({ t }: { t: T }) {
           </label>
         </div>
       </div>
-      {error && <p className="err">{error}</p>}
+      <Feedback error={changes.error || loadError} />
 
       <section className="cloud cloud-other kube-block">
         <h2>{t('deployments')}</h2>
-        {deployments.length === 0 && <p className="empty">{t('kubeEmptyDeploy')}</p>}
+        {deployments.length === 0 && <EmptyState title={pick(lang, 'Sin deployments', 'No deployments')} body={t('kubeEmptyDeploy')} />}
         <ul className="kube-list">
           {deployments.map((d) => (
             <li key={`${d.namespace}/${d.name}`} className="kube-row">
               <span className="kube-name">
                 {d.name} <small>{d.namespace}</small>
               </span>
-              <span className={`pill ${d.ready === d.desired ? 'running' : 'stopped'}`}>
-                <i className="dot" />
+              <Pill tone={d.ready === d.desired ? 'ok' : 'warn'}>
                 {d.ready}/{d.desired}
-              </span>
+              </Pill>
               {!SYSTEM.has(d.namespace) && (
                 <span className="kube-actions">
                   <button className="ghost" aria-label="scale down" disabled={d.desired <= 0} onClick={() => act(() => kube.scale(d.namespace, d.name, d.desired - 1))}>
@@ -119,9 +121,7 @@ export function KubeView({ t }: { t: T }) {
                   <button className="ghost" aria-label="scale up" onClick={() => act(() => kube.scale(d.namespace, d.name, d.desired + 1))}>
                     +
                   </button>
-                  <button className="ghost danger" onClick={() => act(() => kube.remove('deployment', d.namespace, d.name))}>
-                    {t('delete')}
-                  </button>
+                  {remove('deployment', d.namespace, d.name, 'deployment')}
                 </span>
               )}
             </li>
@@ -131,17 +131,14 @@ export function KubeView({ t }: { t: T }) {
 
       <section className="cloud cloud-other kube-block">
         <h2>{t('pods')}</h2>
-        {pods.length === 0 && <p className="empty">{t('kubeEmptyPods')}</p>}
+        {pods.length === 0 && <EmptyState title={pick(lang, 'Sin pods', 'No pods')} body={t('kubeEmptyPods')} />}
         <ul className="kube-list">
           {pods.map((p) => (
             <li key={`${p.namespace}/${p.name}`} className="kube-row">
               <span className="kube-name">
                 {p.name} <small>{p.namespace}</small>
               </span>
-              <span className={`pill pod-${podTone(p.status)}`}>
-                <i className="dot" />
-                {p.status}
-              </span>
+              <Pill tone={podTone(p.status)}>{p.status}</Pill>
               <small>
                 {p.ready} · {p.restarts} {t('restarts')}
               </small>
@@ -149,11 +146,7 @@ export function KubeView({ t }: { t: T }) {
                 <button className="ghost" onClick={() => setLogs(p)}>
                   {t('logs')}
                 </button>
-                {!SYSTEM.has(p.namespace) && (
-                  <button className="ghost danger" onClick={() => act(() => kube.remove('pod', p.namespace, p.name))}>
-                    {t('delete')}
-                  </button>
-                )}
+                {!SYSTEM.has(p.namespace) && remove('pod', p.namespace, p.name, 'pod')}
               </span>
             </li>
           ))}
@@ -162,6 +155,9 @@ export function KubeView({ t }: { t: T }) {
 
       <section className="cloud cloud-other kube-block">
         <h2>{t('k8sServices')}</h2>
+        {services.length === 0 && (
+          <EmptyState title={pick(lang, 'Sin servicios', 'No services')} body={pick(lang, 'Aparecerán cuando apliques un manifiesto con un Service.', 'They will appear once you apply a manifest with a Service.')} />
+        )}
         <ul className="kube-list">
           {services.map((s) => (
             <li key={`${s.namespace}/${s.name}`} className="kube-row">
@@ -181,20 +177,14 @@ export function KubeView({ t }: { t: T }) {
                   )
                 })}
               </span>
-              {!SYSTEM.has(s.namespace) && s.name !== 'kubernetes' && (
-                <span className="kube-actions">
-                  <button className="ghost danger" onClick={() => act(() => kube.remove('service', s.namespace, s.name))}>
-                    {t('delete')}
-                  </button>
-                </span>
-              )}
+              {!SYSTEM.has(s.namespace) && s.name !== 'kubernetes' && <span className="kube-actions">{remove('service', s.namespace, s.name, 'service')}</span>}
             </li>
           ))}
         </ul>
       </section>
 
-      <ApplyBox t={t} onDone={refresh} />
-      {logs && <KubeLogs pod={logs} t={t} onClose={() => setLogs(null)} />}
+      <ApplyBox t={t} onDone={reload} />
+      {logs && <KubeLogs key={`${logs.namespace}/${logs.name}`} pod={logs} t={t} lang={lang} onClose={() => setLogs(null)} />}
     </div>
   )
 }
@@ -204,103 +194,77 @@ function ApplyBox({ t, onDone }: { t: T; onDone: () => void }) {
   const [manifest, setManifest] = useState('')
   const [output, setOutput] = useState('')
   const [failed, setFailed] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const apply = useAction()
+  const config = useAction()
+  const { copied, copy } = useCopy(1800)
 
   useEffect(() => {
     kube.samples().then(setSamples).catch(() => {})
   }, [])
 
-  const apply = async () => {
-    setBusy(true)
-    try {
-      const r = await kube.apply(manifest)
-      setOutput(r.output)
-      setFailed(false)
-    } catch (e) {
-      setOutput(e instanceof Error ? e.message : String(e))
-      setFailed(true)
-    } finally {
-      setBusy(false)
-      onDone()
-    }
-  }
+  // kubectl's answer keeps its line breaks, so it goes in a block, not in a one-line message.
+  const run = () =>
+    apply.run('', async () => {
+      try {
+        const r = await kube.apply(manifest)
+        setOutput(r.output)
+        setFailed(false)
+      } catch (e) {
+        setOutput(e instanceof Error ? e.message : String(e))
+        setFailed(true)
+      } finally {
+        onDone()
+      }
+    })
 
-  const copyKubeconfig = async () => {
-    try {
+  const copyKubeconfig = () =>
+    config.run('', async () => {
       const cfg = await kube.kubeconfig()
-      await navigator.clipboard.writeText(cfg.content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch (e) {
-      setOutput(e instanceof Error ? e.message : String(e))
-      setFailed(true)
-    }
-  }
+      await copy(cfg.content)
+    })
 
   return (
-    <section className="kube-block apply-box">
-      <h2>{t('applyTitle')}</h2>
-      <div className="actions">
-        <select
-          aria-label={t('sampleLabel')}
-          value=""
-          onChange={(e) => {
-            const s = samples.find((x) => x.id === e.target.value)
-            if (s) setManifest(s.manifest)
-          }}
-        >
-          <option value="">{t('sampleLabel')}…</option>
-          {samples.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.title}
-            </option>
-          ))}
-        </select>
-        <button className="ghost" onClick={copyKubeconfig} title={t('kubeconfigNote')}>
-          {copied ? t('copied') : t('copyKubeconfig')}
-        </button>
-      </div>
-      <textarea value={manifest} onChange={(e) => setManifest(e.target.value)} placeholder={t('manifestPlaceholder')} spellCheck={false} aria-label="manifest" />
-      <div className="actions">
-        <button className="primary" disabled={busy || manifest.trim() === ''} onClick={apply}>
-          {busy ? '…' : t('apply2')}
-        </button>
-      </div>
-      {output && <pre className={failed ? 'mini err-box' : 'mini'}>{output}</pre>}
-    </section>
+    <div className="apply-box">
+      <Card title={t('applyTitle')}>
+        <div className="actions">
+          <select
+            aria-label={t('sampleLabel')}
+            value=""
+            onChange={(e) => {
+              const s = samples.find((x) => x.id === e.target.value)
+              if (s) setManifest(s.manifest)
+            }}
+          >
+            <option value="">{t('sampleLabel')}…</option>
+            {samples.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+          <button className="ghost" onClick={copyKubeconfig} title={t('kubeconfigNote')}>
+            {copied ? t('copied') : t('copyKubeconfig')}
+          </button>
+        </div>
+        <Feedback error={config.error} />
+        <textarea value={manifest} onChange={(e) => setManifest(e.target.value)} placeholder={t('manifestPlaceholder')} spellCheck={false} aria-label="manifest" />
+        <div className="actions">
+          <button className="primary" disabled={apply.busy || manifest.trim() === ''} onClick={run}>
+            {apply.busy ? '…' : t('apply2')}
+          </button>
+        </div>
+        {output && <pre className={failed ? 'mini err-box' : 'mini'}>{output}</pre>}
+      </Card>
+    </div>
   )
 }
 
-function KubeLogs({ pod, t, onClose }: { pod: KubePod; t: T; onClose: () => void }) {
-  const [text, setText] = useState('')
-
-  useEffect(() => {
-    let alive = true
-    const load = () =>
-      kube
-        .logs(pod.namespace, pod.name)
-        .then((r) => alive && setText(r.output))
-        .catch((e) => alive && setText(e instanceof Error ? e.message : String(e)))
-    load()
-    const id = setInterval(load, 2500)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
-  }, [pod])
+function KubeLogs({ pod, t, lang, onClose }: { pod: KubePod; t: T; lang: Lang; onClose: () => void }) {
+  const { data, error } = useLoad(() => kube.logs(pod.namespace, pod.name).then((r) => r.output), 2500)
 
   return (
-    <aside className="panel" role="dialog" aria-label={pod.name}>
-      <div className="panel-head">
-        <h3>
-          {pod.name} · {t('logs')}
-        </h3>
-        <button className="ghost" onClick={onClose}>
-          {t('close')}
-        </button>
-      </div>
-      <pre>{text || t('noLogs')}</pre>
-    </aside>
+    <Drawer title={`${pod.name} · ${t('logs')}`} label={pod.name} lang={lang} onClose={onClose}>
+      <pre>{data || error || t('noLogs')}</pre>
+    </Drawer>
   )
 }

@@ -1,63 +1,55 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError, formatBytes, inspect, type ObjectList, type PubSub, type QueueMessage } from './api'
-import type { Key } from './i18n'
+import type { Key, Lang } from './i18n'
+import './screens.css'
+import { EmptyState, Feedback, Field, Notice, pick, useLoad } from './ui'
 
 type T = (k: Key) => string
 
-interface Polled<V> {
-  data: V | null
-  error: ApiError | null
+interface Ctx {
+  t: T
+  lang: Lang
 }
 
-/** Re-runs `load` every `ms` while mounted; keeps the last good data when a refresh fails. */
-function usePolled<V>(load: () => Promise<V>, ms = 4000): Polled<V> & { reload: () => void } {
-  const [state, setState] = useState<Polled<V>>({ data: null, error: null })
-  const loadRef = useRef(load)
-  loadRef.current = load
-
-  const reload = useCallback(() => {
-    loadRef
-      .current()
-      .then((data) => setState({ data, error: null }))
-      .catch((e) => setState((prev) => ({ data: prev.data, error: e instanceof ApiError ? e : new ApiError(0, String(e)) })))
-  }, [])
-
-  useEffect(() => {
-    reload()
-    const id = setInterval(reload, ms)
-    return () => clearInterval(id)
-  }, [reload, ms])
-
-  return { ...state, reload }
+/** Polls an emulator every few seconds. `down` is true when the last answer was a 503: that emulator is not running. */
+function usePolled<V>(load: () => Promise<V>, ms = 4000) {
+  const down = useRef(false)
+  const polled = useLoad(
+    () =>
+      load().then(
+        (v) => {
+          down.current = false
+          return v
+        },
+        (e) => {
+          down.current = e instanceof ApiError && e.status === 503
+          throw e
+        },
+      ),
+    ms,
+  )
+  return { ...polled, down: down.current && !!polled.error }
 }
 
-export function InspectorView({ t }: { t: T }) {
+export function InspectorView(ctx: Ctx) {
   return (
     <div className="inspector">
-      <S3Section t={t} />
-      <SqsSection t={t} />
-      <DynamoSection t={t} />
-      <PubSubSection t={t} />
+      <S3Section {...ctx} />
+      <SqsSection {...ctx} />
+      <DynamoSection {...ctx} />
+      <PubSubSection {...ctx} />
     </div>
   )
 }
 
-function Section({ title, cloud, error, t, children }: { title: string; cloud: string; error: ApiError | null; t: T; children: ReactNode }) {
+function Section({ title, cloud, error, down, t, children }: { title: string; cloud: string; error: string; down: boolean; t: T; children: ReactNode }) {
   return (
     <section className={`cloud cloud-${cloud} insp`}>
       <h2>{title}</h2>
-      {error && error.status === 503 ? (
-        <p className="muted">{t('notRunning')}</p>
-      ) : error ? (
-        <p className="err">{error.message}</p>
-      ) : null}
-      {(!error || error.status !== 503) && children}
+      {down ? <Notice>{t('notRunning')}</Notice> : <Feedback error={error} />}
+      {!down && children}
     </section>
   )
-}
-
-function Empty({ t }: { t: T }) {
-  return <p className="muted">{t('empty')}</p>
 }
 
 function Pick({ items, selected, onSelect }: { items: Array<{ id: string; label: string; meta?: string }>; selected: string | null; onSelect: (id: string) => void }) {
@@ -75,7 +67,7 @@ function Pick({ items, selected, onSelect }: { items: Array<{ id: string; label:
   )
 }
 
-function S3Section({ t }: { t: T }) {
+function S3Section({ t, lang }: Ctx) {
   const buckets = usePolled(inspect.buckets)
   const [bucket, setBucket] = useState<string | null>(null)
   const objects = usePolled<ObjectList | null>(() => (bucket ? inspect.objects(bucket) : Promise.resolve(null)))
@@ -101,14 +93,21 @@ function S3Section({ t }: { t: T }) {
   }, [bucket, key])
 
   return (
-    <Section title="S3 · Amazon" cloud="aws" error={buckets.error} t={t}>
-      {buckets.data && buckets.data.length === 0 && <Empty t={t} />}
+    <Section title="S3 · Amazon" cloud="aws" error={buckets.error} down={buckets.down} t={t}>
+      {buckets.data && buckets.data.length === 0 && (
+        <EmptyState
+          title={pick(lang, 'Aún no hay buckets', 'No buckets yet')}
+          body={pick(lang, 'Crea uno desde tu aplicación o con la CLI de AWS apuntando a este emulador.', 'Create one from your app or with the AWS CLI pointed at this emulator.')}
+        />
+      )}
       <div className="split">
         <Pick items={(buckets.data ?? []).map((b) => ({ id: b.name, label: b.name }))} selected={bucket} onSelect={setBucket} />
         {bucket && (
           <div className="detail">
-            {objects.error && <p className="err">{objects.error.message}</p>}
-            {objects.data && objects.data.objects.length === 0 && <Empty t={t} />}
+            <Feedback error={objects.error} />
+            {objects.data && objects.data.objects.length === 0 && (
+              <EmptyState title={pick(lang, 'El bucket está vacío', 'The bucket is empty')} body={pick(lang, 'Los objetos que subas aparecerán aquí.', 'Objects you upload will show up here.')} />
+            )}
             <ul className="pick">
               {objects.data?.objects.map((o) => (
                 <li key={o.key}>
@@ -128,15 +127,17 @@ function S3Section({ t }: { t: T }) {
   )
 }
 
-function SqsSection({ t }: { t: T }) {
+function SqsSection({ t, lang }: Ctx) {
   const queues = usePolled(inspect.queues)
   const [queue, setQueue] = useState<string | null>(null)
   const messages = usePolled<QueueMessage[]>(() => (queue ? inspect.messages(queue).then((r) => r.messages) : Promise.resolve([])))
   useEffect(() => messages.reload(), [queue, messages.reload])
 
   return (
-    <Section title="SQS · Amazon" cloud="aws" error={queues.error} t={t}>
-      {queues.data && queues.data.length === 0 && <Empty t={t} />}
+    <Section title="SQS · Amazon" cloud="aws" error={queues.error} down={queues.down} t={t}>
+      {queues.data && queues.data.length === 0 && (
+        <EmptyState title={pick(lang, 'Aún no hay colas', 'No queues yet')} body={pick(lang, 'Crea una cola desde tu aplicación y la verás aquí.', 'Create a queue from your app and it will show up here.')} />
+      )}
       <div className="split">
         <Pick
           items={(queues.data ?? []).map((q) => ({
@@ -150,8 +151,10 @@ function SqsSection({ t }: { t: T }) {
         {queue && (
           <div className="detail">
             <p className="hint">{t('peekNote')}</p>
-            {messages.error && <p className="err">{messages.error.message}</p>}
-            {messages.data && messages.data.length === 0 && <Empty t={t} />}
+            <Feedback error={messages.error} />
+            {messages.data && messages.data.length === 0 && (
+              <EmptyState title={pick(lang, 'La cola está vacía', 'The queue is empty')} body={pick(lang, 'Los mensajes que lleguen aparecerán aquí.', 'Messages that arrive will show up here.')} />
+            )}
             {messages.data?.map((m) => (
               <div key={m.id} className="msg">
                 <pre className="mini">{m.body}</pre>
@@ -167,15 +170,17 @@ function SqsSection({ t }: { t: T }) {
   )
 }
 
-function DynamoSection({ t }: { t: T }) {
+function DynamoSection({ t, lang }: Ctx) {
   const tables = usePolled(inspect.tables)
   const [table, setTable] = useState<string | null>(null)
   const items = usePolled(() => (table ? inspect.items(table) : Promise.resolve(null)))
   useEffect(() => items.reload(), [table, items.reload])
 
   return (
-    <Section title="DynamoDB · Amazon" cloud="aws" error={tables.error} t={t}>
-      {tables.data && tables.data.length === 0 && <Empty t={t} />}
+    <Section title="DynamoDB · Amazon" cloud="aws" error={tables.error} down={tables.down} t={t}>
+      {tables.data && tables.data.length === 0 && (
+        <EmptyState title={pick(lang, 'Aún no hay tablas', 'No tables yet')} body={pick(lang, 'Crea una tabla desde tu aplicación y la verás aquí.', 'Create a table from your app and it will show up here.')} />
+      )}
       <div className="split">
         <Pick
           items={(tables.data ?? []).map((x) => ({ id: x.name, label: x.name, meta: `${x.items ?? '?'} · ${x.keys.join(', ')}` }))}
@@ -184,8 +189,10 @@ function DynamoSection({ t }: { t: T }) {
         />
         {table && (
           <div className="detail">
-            {items.error && <p className="err">{items.error.message}</p>}
-            {items.data && items.data.items.length === 0 && <Empty t={t} />}
+            <Feedback error={items.error} />
+            {items.data && items.data.items.length === 0 && (
+              <EmptyState title={pick(lang, 'La tabla está vacía', 'The table is empty')} body={pick(lang, 'Los elementos que guardes aparecerán aquí.', 'Items you store will show up here.')} />
+            )}
             {items.data && items.data.items.length > 0 && <pre className="mini">{JSON.stringify(items.data.items, null, 2)}</pre>}
           </div>
         )}
@@ -194,18 +201,22 @@ function DynamoSection({ t }: { t: T }) {
   )
 }
 
-function PubSubSection({ t }: { t: T }) {
+function PubSubSection({ t, lang }: Ctx) {
   const [project, setProject] = useState('floci-local')
   const pubsub = usePolled<PubSub>(() => inspect.pubsub(project))
   useEffect(() => pubsub.reload(), [project, pubsub.reload])
 
   return (
-    <Section title="Pub/Sub · Google Cloud" cloud="gcp" error={pubsub.error} t={t}>
-      <label className="field">
-        {t('project')}
-        <input value={project} onChange={(e) => setProject(e.target.value.trim())} aria-label={t('project')} />
-      </label>
-      {pubsub.data && pubsub.data.topics.length === 0 && pubsub.data.subscriptions.length === 0 && <Empty t={t} />}
+    <Section title="Pub/Sub · Google Cloud" cloud="gcp" error={pubsub.error} down={pubsub.down} t={t}>
+      <div className="reg-form insp-project">
+        <Field label={t('project')}>{(a) => <input {...a} value={project} onChange={(e) => setProject(e.target.value.trim())} />}</Field>
+      </div>
+      {pubsub.data && pubsub.data.topics.length === 0 && pubsub.data.subscriptions.length === 0 && (
+        <EmptyState
+          title={pick(lang, 'Aún no hay temas ni suscripciones', 'No topics or subscriptions yet')}
+          body={pick(lang, 'Crea un tema desde tu aplicación y lo verás aquí.', 'Create a topic from your app and it will show up here.')}
+        />
+      )}
       <div className="split">
         <ul className="pick">
           {pubsub.data?.topics.map((x) => (

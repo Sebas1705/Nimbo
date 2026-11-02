@@ -1,92 +1,61 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, barStyle, formatMicros, traces, type TraceDetail, type TraceSummary } from './api'
-import type { Key } from './i18n'
+import type { Key, Lang } from './i18n'
+import './screens.css'
+import { EmptyState, Feedback, Notice, pick, useAction, useLoad } from './ui'
 
 type T = (k: Key) => string
 
-export function TracesView({ t }: { t: T }) {
-  const [services, setServices] = useState<string[] | null>(null)
-  const [down, setDown] = useState(false)
+/** The services Jaeger knows, or the fact that Jaeger is not there (503). */
+async function loadServices(): Promise<{ down: boolean; services: string[] }> {
+  try {
+    return { down: false, services: await traces.services() }
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 503) return { down: true, services: [] }
+    throw e
+  }
+}
+
+export function TracesView({ t, lang }: { t: T; lang: Lang }) {
+  const known = useLoad(loadServices, 5000)
   const [service, setService] = useState('')
-  const [list, setList] = useState<TraceSummary[]>([])
   const [selected, setSelected] = useState<string | null>(null)
-  const [detail, setDetail] = useState<TraceDetail | null>(null)
-  const [error, setError] = useState('')
+  const send = useAction()
 
-  const refresh = useCallback(() => {
-    traces
-      .services()
-      .then((s) => {
-        setServices(s)
-        setDown(false)
-        setService((cur) => (cur && s.includes(cur) ? cur : (s.find((x) => x !== 'jaeger-all-in-one') ?? s[0] ?? '')))
-      })
-      .catch((e) => {
-        setDown(e instanceof ApiError && e.status === 503)
-        setError(e instanceof Error ? e.message : String(e))
-      })
-  }, [])
+  const services = known.data?.services ?? null
+  const down = known.data?.down === true
 
   useEffect(() => {
-    refresh()
-    const id = setInterval(refresh, 5000)
-    return () => clearInterval(id)
-  }, [refresh])
+    if (!services) return
+    setService((cur) => (cur && services.includes(cur) ? cur : (services.find((x) => x !== 'jaeger-all-in-one') ?? services[0] ?? '')))
+  }, [services])
 
-  useEffect(() => {
-    if (!service) {
-      setList([])
-      return
-    }
-    let alive = true
-    const load = () =>
-      traces
-        .list(service)
-        .then((l) => alive && setList(l))
-        .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
-    load()
-    const id = setInterval(load, 4000)
-    return () => {
-      alive = false
-      clearInterval(id)
-    }
-  }, [service])
+  // Each answer says which service it is for, so a slow answer for the one you just left is not shown.
+  const traceList = useLoad(async () => ({ service, list: service ? await traces.list(service) : ([] as TraceSummary[]) }), 4000)
+  const reloadList = traceList.reload
+  useEffect(() => reloadList(), [service, reloadList])
+  const list: TraceSummary[] = traceList.data?.service === service ? traceList.data.list : []
 
-  useEffect(() => {
-    if (!selected) {
-      setDetail(null)
-      return
-    }
-    let alive = true
-    traces
-      .detail(selected)
-      .then((d) => alive && setDetail(d))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
-    return () => {
-      alive = false
-    }
-  }, [selected])
+  const traceDetail = useLoad(async () => (selected ? await traces.detail(selected) : null))
+  const reloadDetail = traceDetail.reload
+  useEffect(() => reloadDetail(), [selected, reloadDetail])
+  const detail: TraceDetail | null = selected && traceDetail.data?.traceId === selected ? traceDetail.data : null
 
-  const send = async (failing: boolean) => {
-    setError('')
-    try {
+  const sendSample = (failing: boolean) =>
+    send.run('', async () => {
       const r = await traces.sample(failing)
       setService(r.service)
-      setTimeout(refresh, 1500)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
+      setTimeout(known.reload, 1500)
+    })
 
   if (down) {
     return (
       <div className="traces">
-        <div className="banner" role="alert">
-          {t('jaegerDown')}
-        </div>
+        <Notice>{t('jaegerDown')}</Notice>
       </div>
     )
   }
+  if (!known.data) return <Feedback working={known.error ? '' : t('loading')} error={known.error} />
 
   return (
     <div className="traces">
@@ -94,7 +63,14 @@ export function TracesView({ t }: { t: T }) {
         <div className="actions">
           <label className="field">
             {t('traceService')}
-            <select value={service} onChange={(e) => { setService(e.target.value); setSelected(null) }} aria-label={t('traceService')}>
+            <select
+              value={service}
+              onChange={(e) => {
+                setService(e.target.value)
+                setSelected(null)
+              }}
+              aria-label={t('traceService')}
+            >
               {(services ?? []).map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -102,17 +78,21 @@ export function TracesView({ t }: { t: T }) {
               ))}
             </select>
           </label>
-          <button className="primary" onClick={() => send(false)}>
+          <button className="primary" disabled={send.busy} onClick={() => sendSample(false)}>
             {t('sendSample')}
           </button>
-          <button className="ghost" onClick={() => send(true)}>
+          <button className="ghost" disabled={send.busy} onClick={() => sendSample(true)}>
             {t('sendFailing')}
           </button>
         </div>
       </div>
-      {error && <p className="err">{error}</p>}
-      {services && services.length === 0 && <p className="muted">{t('noServices')}</p>}
-      {service && list.length === 0 && services && services.length > 0 && <p className="muted">{t('noTraces')}</p>}
+      <Feedback error={send.error || known.error || traceList.error || traceDetail.error} />
+      {services && services.length === 0 && (
+        <EmptyState title={pick(lang, 'Aún no hay trazas', 'No traces yet')} body={t('noServices')} action={t('sendSample')} onAction={() => sendSample(false)} />
+      )}
+      {service && list.length === 0 && services && services.length > 0 && traceList.data?.service === service && (
+        <EmptyState title={pick(lang, 'Este servicio no tiene trazas', 'This service has no traces')} body={t('noTraces')} />
+      )}
 
       <div className="split trace-split">
         <ul className="pick">
@@ -132,7 +112,7 @@ export function TracesView({ t }: { t: T }) {
         </ul>
 
         <div className="detail">
-          {!detail && <p className="muted">{t('selectTrace')}</p>}
+          {!selected && list.length > 0 && <EmptyState title={pick(lang, 'Ninguna traza elegida', 'No trace picked')} body={t('selectTrace')} />}
           {detail && <Waterfall detail={detail} />}
         </div>
       </div>

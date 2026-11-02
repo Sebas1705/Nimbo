@@ -1,9 +1,9 @@
-import { useState } from 'react'
 import type { DockerStatus, Provider } from './api'
 import { RECIPES, type Recipe } from './guides'
 import { primaryPort, recipeStatus, runningCount, stepStatus } from './guideLogic'
 import type { Key, Lang } from './i18n'
 import type { TabId } from './nav'
+import { Card, Feedback, Pill, useAction } from './ui'
 
 type T = (k: Key) => string
 
@@ -89,35 +89,30 @@ export function GuideView(props: Props) {
 
 function RecipeCard({ recipe, t, lang, docker, providers, startMany, stop, go, openLab }: Props & { recipe: Recipe }) {
   const status = recipeStatus(recipe, providers)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const action = useAction()
   const byId = new Map(providers.map((p) => [p.id, p]))
 
-  const start = async () => {
-    setBusy(true)
-    setError('')
-    const failure = await startMany(status.missing)
-    if (failure) setError(failure)
-    setBusy(false)
-  }
+  const start = () =>
+    action.run('', async () => {
+      const failure = await startMany(status.missing)
+      if (failure) throw new Error(failure)
+    })
 
   return (
-    <article className="recipe" data-state={status.state}>
-      <header>
-        <h3>{recipe.title[lang]}</h3>
-        {status.state === 'up' ? (
-          <span className="pill running">
-            <i className="led on" />
-            {t('recipeUp')}
-          </span>
+    <Card
+      title={recipe.title[lang]}
+      tone={status.state === 'up' ? 'highlight' : undefined}
+      actions={
+        status.state === 'up' ? (
+          <Pill tone="ok">{t('recipeUp')}</Pill>
         ) : status.state === 'partial' ? (
-          <span className="pill stopped">
-            <i className="dot" />
+          <Pill tone="warn">
             {status.running}/{status.total}
-          </span>
-        ) : null}
-      </header>
-      <p>{recipe.summary[lang]}</p>
+          </Pill>
+        ) : undefined
+      }
+    >
+      <p className="recipe-summary">{recipe.summary[lang]}</p>
 
       <ul className="recipe-parts">
         {recipe.providers.map((id) => {
@@ -139,13 +134,13 @@ function RecipeCard({ recipe, t, lang, docker, providers, startMany, stop, go, o
         ))}
       </ul>
 
-      {error && <p className="err">{error}</p>}
+      <Feedback error={action.error} />
       <div className="actions">
         {status.state === 'up' ? (
           <button onClick={() => stop(recipe.providers)}>{t('recipeStop')}</button>
         ) : (
-          <button className="primary" disabled={busy || !docker?.available} onClick={start}>
-            {busy ? t('recipeStarting') : t('recipeStart')}
+          <button className="primary" disabled={action.busy || !docker?.available} onClick={start}>
+            {action.busy ? t('recipeStarting') : t('recipeStart')}
           </button>
         )}
         <button className={status.state === 'up' ? 'link strong' : 'link'} onClick={() => go(recipe.next.tab)}>
@@ -157,6 +152,6 @@ function RecipeCard({ recipe, t, lang, docker, providers, startMany, stop, go, o
           </button>
         )}
       </div>
-    </article>
+    </Card>
   )
 }
