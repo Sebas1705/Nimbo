@@ -11,3 +11,5 @@ web/dist/
 .vscode/
 *.log
 .claude/
+.gradle/
+.kotlin/
