@@ -69,7 +69,7 @@ func NewServer(cfg Config, deps Deps) http.Handler {
 		deps.Data = NewAppData(nil, nil)
 	}
 	if deps.Runtime == nil {
-		deps.Runtime = NewCliContainerRuntime(ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")})
+		deps.Runtime = NewCachedRuntime(NewCliContainerRuntime(ProcessExec{Bin: orDefault(cfg.DockerBin, "docker")}), DefaultCacheTTL)
 	}
 	if deps.Stacks == nil {
 		deps.Stacks = BuiltInStacks()

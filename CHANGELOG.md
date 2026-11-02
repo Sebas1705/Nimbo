@@ -3,6 +3,11 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [Unreleased]
+
+### Changed
+- **Much lighter polling.** The page asks for the state of Docker, the emulators and the stacks every 3 seconds; each answer used to start its own `docker` processes (92 per minute, 0.6 to 0.9 s per answer). The container runtime now shares one run of `docker` between those requests and drops what it remembers the moment you change something, so what you do still shows at once. Measured with Docker running: 20 processes per minute and a median of 1 to 47 ms per answer.
+
 ## [0.4.0]
 
 ### Added
