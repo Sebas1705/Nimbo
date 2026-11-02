@@ -1,5 +1,7 @@
 .gradle/
-build/
+backend/build/
+/build/bin/
+/web/wailsjs-unused/
 .kotlin/
 *.class
 node_modules/
