@@ -9,9 +9,9 @@ import (
 
 const regKeyName = "NIMBO_C_MY_API_API_KEY"
 
-// regServer is the whole API with an image registry mounted, over an in-memory data folder and the fake runtime. The
+// imgRegServer is the whole API with an image registry mounted, over an in-memory data folder and the fake runtime. The
 // registered images are process-wide, so each test clears them when it ends.
-func regServer(t *testing.T) (h http.Handler, rt *coreFakeRuntime, store *coreMemorySecrets, data *AppData, reg *ImageRegistry) {
+func imgRegServer(t *testing.T) (h http.Handler, rt *coreFakeRuntime, store *coreMemorySecrets, data *AppData, reg *ImageRegistry) {
 	t.Helper()
 	SetCustomProviders(nil)
 	t.Cleanup(func() { SetCustomProviders(nil) })
@@ -41,7 +41,7 @@ func regJournal(data *AppData) string {
 }
 
 func TestRegistryImageValidation(t *testing.T) {
-	h, _, _, _, _ := regServer(t)
+	h, _, _, _, _ := imgRegServer(t)
 	long := strings.Repeat("x", 501)
 	cases := []struct{ name, id, body, want string }{
 		{"bad id", "Bad_ID", regAPI, "lowercase"},
@@ -89,7 +89,7 @@ func TestRegistryImageValidation(t *testing.T) {
 }
 
 func TestRegistryImageLifecycleOverHTTP(t *testing.T) {
-	h, _, _, data, _ := regServer(t)
+	h, _, _, data, _ := imgRegServer(t)
 	coreEq(t, "[]\n", coreDo(h, "GET", "/api/registry/images", "").Body, "lists are never null")
 
 	r := regPut(h, "my-api", regAPI)
@@ -164,7 +164,7 @@ func coreObjectList(t *testing.T, body string) []any {
 }
 
 func TestACustomImageStartsThroughTheRuntimeWithItsEnvAndSecret(t *testing.T) {
-	h, rt, store, _, _ := regServer(t)
+	h, rt, store, _, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 
 	coreEq(t, 204, coreDo(h, "PUT", "/api/secrets/"+regKeyName, `{"value":"super-secret-key-1"}`).Code)
@@ -197,7 +197,7 @@ func TestACustomImageStartsThroughTheRuntimeWithItsEnvAndSecret(t *testing.T) {
 }
 
 func TestPersistedVolumeArgsOfACustomImage(t *testing.T) {
-	h, rt, _, _, _ := regServer(t)
+	h, rt, _, _, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	def := *FindProvider("my-api")
 	on := strings.Join(BuildRunArgs(def, nil, true), " ")
@@ -217,7 +217,7 @@ func TestPersistedVolumeArgsOfACustomImage(t *testing.T) {
 }
 
 func TestSecretsOfACustomImageAreListedRevealedAndInitialized(t *testing.T) {
-	h, _, store, data, _ := regServer(t)
+	h, _, store, data, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 
 	// Settings > secrets lists the dynamic name, unset, with the image as its user.
@@ -278,7 +278,7 @@ func TestSecretsOfACustomImageAreListedRevealedAndInitialized(t *testing.T) {
 }
 
 func TestDeleteIsRefusedWhileTheContainerExists(t *testing.T) {
-	h, rt, _, _, _ := regServer(t)
+	h, rt, _, _, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	coreEq(t, 202, coreDo(h, "POST", "/api/providers/my-api/start", "").Code)
 
@@ -296,7 +296,7 @@ func TestDeleteIsRefusedWhileTheContainerExists(t *testing.T) {
 }
 
 func TestPortsCannotCollideWithBuiltInsOrOtherImages(t *testing.T) {
-	h, _, _, _, _ := regServer(t)
+	h, _, _, _, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "one", `{"image":"x/one","ports":[8081,8082]}`).Code)
 	r := regPut(h, "two", `{"image":"x/two","ports":[8082]}`)
 	coreEq(t, 400, r.Code)
@@ -313,7 +313,7 @@ func TestPortsCannotCollideWithBuiltInsOrOtherImages(t *testing.T) {
 }
 
 func TestTwoImagesNeverShareASecretName(t *testing.T) {
-	h, _, _, _, _ := regServer(t)
+	h, _, _, _, _ := imgRegServer(t)
 	coreEq(t, "NIMBO_C_A_B_K", CustomSecretName("a-b", "K"))
 	coreEq(t, "NIMBO_C_A_B_K", CustomSecretName("a", "B_k"))
 	coreEq(t, 200, regPut(h, "a-b", `{"image":"x/a","secretKeys":["K"]}`).Code)
@@ -324,7 +324,7 @@ func TestTwoImagesNeverShareASecretName(t *testing.T) {
 }
 
 func TestStacksAndExportsIncludeACustomImage(t *testing.T) {
-	h, rt, store, data, _ := regServer(t)
+	h, rt, store, data, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	coreEq(t, 200, coreDo(h, "PUT", "/api/stacks/with-mine", `{"description":"x","providers":["my-api","redis"]}`).Code)
 	coreEq(t, 400, coreDo(h, "PUT", "/api/stacks/bad", `{"providers":["ghost"]}`).Code)
@@ -388,7 +388,7 @@ func TestStacksAndExportsIncludeACustomImage(t *testing.T) {
 }
 
 func TestNoSecretValueInAnyListOrTheJournal(t *testing.T) {
-	h, _, store, data, _ := regServer(t)
+	h, _, store, data, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	coreEq(t, 204, coreDo(h, "PUT", "/api/secrets/"+regKeyName, `{"value":"never-show-this-9"}`).Code)
 	coreEq(t, 202, coreDo(h, "POST", "/api/providers/my-api/start", "").Code)
@@ -415,7 +415,7 @@ func TestNoSecretValueInAnyListOrTheJournal(t *testing.T) {
 }
 
 func TestRegisteredImagesSurviveARestartAndBadEntriesAreSkipped(t *testing.T) {
-	h, rt, store, data, _ := regServer(t)
+	h, rt, store, data, _ := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	coreEq(t, 200, regPut(h, "other", `{"image":"x/other","ports":[8090]}`).Code)
 	coreTrue(t, FindProvider("my-api") != nil)
@@ -453,7 +453,7 @@ func TestRegisteredImagesSurviveARestartAndBadEntriesAreSkipped(t *testing.T) {
 }
 
 func TestImageStatusListsAndPullsCustomImages(t *testing.T) {
-	h, _, _, data, reg := regServer(t)
+	h, _, _, data, reg := imgRegServer(t)
 	coreEq(t, 200, regPut(h, "my-api", regAPI).Code)
 	docker := newImgDocker()
 	docker.images = "ghcr.io/me/api:1.2"

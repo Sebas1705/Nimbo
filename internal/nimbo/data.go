@@ -308,7 +308,8 @@ const (
 )
 
 // BackupFiles are the files a backup carries. Secrets are deliberately not among them.
-var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity, FileCustomStacks}
+// The registry (own images, repositories, compose profiles) is part of a backup; the record of the last "up" is not.
+var BackupFiles = []string{FileSettings, FileProgress, FileStats, FileFidelity, FileCustomStacks, FileRegistryImages, FileRegistrySources, FileRegistryCompose}
 
 // ---- Settings -----------------------------------------------------------------------------------------------------
 
@@ -839,6 +840,12 @@ func validateBackupFile(name, text string) error {
 		opener = '['
 	case FileCustomStacks:
 		target = &customStackFile{}
+	case FileRegistryImages:
+		target = &imageFile{}
+	case FileRegistrySources:
+		target = &registrySourceFile{}
+	case FileRegistryCompose:
+		target = &registryComposeFile{}
 	default:
 		return nil
 	}

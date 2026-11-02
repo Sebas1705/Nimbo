@@ -37,7 +37,6 @@ const (
 )
 
 var (
-	registryIDRe     = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,30}$`)
 	registryBranchRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]{0,100}$`)
 	registryHostRe   = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$`)
 	registryURLPath  = regexp.MustCompile(`^/[A-Za-z0-9._~/-]+$`)
