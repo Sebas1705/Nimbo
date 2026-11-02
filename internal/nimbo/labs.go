@@ -392,21 +392,30 @@ func LabsFromFS(fsys fs.FS) *LabCatalog {
 	return labAssemble(sources)
 }
 
-// LoadLabs finds the labs the way the Kotlin app did: NIMBO_LABS_DIR, then ./labs, then ../labs, and finally the
-// bundled copy (may be nil, which means no labs).
+// LoadLabs finds the labs: NIMBO_LABS_DIR when you set it, then the copy bundled in the app, and only when there is
+// no bundled copy (a build made for development) the labs/ folder next to where it was started. The folder you
+// happened to launch the app from must not decide which labs it shows. The bundle holds them under labs/ (that is how
+// the repository is laid out); a bundle with the files at its root also works.
 func LoadLabs(env map[string]string, bundled fs.FS) *LabCatalog {
-	for _, dir := range []string{env["NIMBO_LABS_DIR"], "labs", "../labs"} {
-		if dir == "" {
-			continue
-		}
+	if dir := env["NIMBO_LABS_DIR"]; dir != "" {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			return LabsFromDir(dir)
 		}
 	}
-	if bundled == nil {
-		return &LabCatalog{Labs: []LabDef{}, Problems: []string{}}
+	if bundled != nil {
+		if sub, err := fs.Sub(bundled, "labs"); err == nil {
+			if entries, err := fs.ReadDir(sub, "."); err == nil && len(entries) > 0 {
+				return LabsFromFS(sub)
+			}
+		}
+		return LabsFromFS(bundled)
 	}
-	return LabsFromFS(bundled)
+	for _, dir := range []string{"labs", "../labs"} {
+		if st, err := os.Stat(dir); err == nil && st.IsDir() {
+			return LabsFromDir(dir)
+		}
+	}
+	return &LabCatalog{Labs: []LabDef{}, Problems: []string{}}
 }
 
 func labAssemble(sources []labSource) *LabCatalog {

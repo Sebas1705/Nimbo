@@ -451,3 +451,58 @@ func TestTheWindowCanChangeThingsAndAForeignPageCannot(t *testing.T) {
 		t.Errorf("no Origin (a script): %d, want 200", got)
 	}
 }
+
+// The published app is not started from the repository, so what it shows must come from what is inside the exe. This
+// is the test that 0.3.0 lacked: it used the real embedded files, from a folder with no labs/ and no nimbo.yml.
+func TestTheEmbeddedLabsAndStacksLoadFromAnyFolder(t *testing.T) {
+	onDisk, err := os.ReadDir("labs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := 0
+	for _, e := range onDisk {
+		if strings.HasSuffix(e.Name(), ".yml") {
+			want++
+		}
+	}
+	t.Chdir(t.TempDir())
+
+	labs := nimbo.LoadLabs(map[string]string{}, bundledDefaults)
+	if len(labs.Labs) != want || want < 8 {
+		t.Errorf("labs: %d loaded, %d in the repository", len(labs.Labs), want)
+	}
+	if len(labs.Problems) != 0 {
+		t.Errorf("lab problems: %v", labs.Problems)
+	}
+	stacks := nimbo.LoadStacks(map[string]string{}, bundledDefaults)
+	if len(stacks.Problems) != 0 || stacks.Find("cluster") == nil || stacks.Find("storage-lab") == nil {
+		t.Errorf("stacks: %+v", stacks)
+	}
+}
+
+// A folder named labs or a nimbo.yml in the folder the app was started from must not change what it shows.
+func TestTheLaunchFolderDoesNotDecideWhatTheAppShows(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "labs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "labs", "stray.yml"), []byte("not: a lab"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "nimbo.yml"), []byte("stacks:\n  stray:\n    providers: [redis]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	for _, l := range nimbo.LoadLabs(map[string]string{}, bundledDefaults).Labs {
+		if l.Dto.ID == "stray" {
+			t.Error("a lab from the launch folder was loaded")
+		}
+	}
+	if nimbo.LoadStacks(map[string]string{}, bundledDefaults).Find("stray") != nil {
+		t.Error("a stack from the launch folder was loaded")
+	}
+	// Explicit settings still win.
+	if got := nimbo.LoadStacks(map[string]string{"NIMBO_STACKS_FILE": filepath.Join(dir, "nimbo.yml")}, bundledDefaults); got.Find("stray") == nil {
+		t.Error("NIMBO_STACKS_FILE was ignored")
+	}
+}
