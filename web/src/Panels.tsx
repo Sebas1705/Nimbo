@@ -1,24 +1,17 @@
 import { useEffect, useState } from 'react'
 import { api, type ExportFormat, type Provider, type Stack } from './api'
+import { langOf } from './CodeBlock'
 import type { Key, Lang } from './i18n'
+import { CopyButton, Drawer, Notice } from './ui'
+import './system.css'
 
 type T = (k: Key) => string
 
 export type Panel = { kind: 'logs' | 'env'; provider: Provider } | null
 
-async function copyText(text: string, done: () => void) {
-  try {
-    await navigator.clipboard.writeText(text)
-    done()
-  } catch {
-    /* clipboard blocked: the text is still selectable */
-  }
-}
-
 /** Logs or client variables of one provider, in a drawer. Logs refresh while it is open. */
-export function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t: T; onClose: () => void }) {
+export function SidePanel({ panel, t, lang, onClose }: { panel: NonNullable<Panel>; t: T; lang?: Lang; onClose: () => void }) {
   const [text, setText] = useState('')
-  const [copied, setCopied] = useState(false)
   const [withSecrets, setWithSecrets] = useState(false)
 
   useEffect(() => {
@@ -35,36 +28,26 @@ export function SidePanel({ panel, t, onClose }: { panel: NonNullable<Panel>; t:
     }
   }, [panel, withSecrets])
 
+  const l = lang ?? langOf(t)
   return (
-    <aside className="panel" role="dialog" aria-label={panel.provider.name}>
-      <div className="panel-head">
-        <h3>
-          {panel.provider.name} · {t(panel.kind)}
-        </h3>
-        <div>
-          <button
-            className="ghost"
-            onClick={() =>
-              copyText(text, () => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 1500)
-              })
-            }
-          >
-            {copied ? t('copied') : t('copy')}
-          </button>
+    <Drawer
+      lang={l}
+      label={panel.provider.name}
+      title={`${panel.provider.name} · ${t(panel.kind)}`}
+      onClose={onClose}
+      actions={
+        <>
+          <CopyButton lang={l} text={text} className="ghost" />
           {panel.kind === 'env' && (
             <button className="ghost" onClick={() => setWithSecrets((v) => !v)} title="Los valores reales quedan anotados en el diario / Real values are noted in the journal">
               {withSecrets ? 'Ocultar contraseñas / Hide passwords' : 'Mostrar contraseñas / Show passwords'}
             </button>
           )}
-          <button className="ghost" onClick={onClose}>
-            {t('close')}
-          </button>
-        </div>
-      </div>
+        </>
+      }
+    >
       <pre>{text || t('noLogs')}</pre>
-    </aside>
+    </Drawer>
   )
 }
 
@@ -123,7 +106,6 @@ export function ExportPanel({ stack, t, lang, hasAws, onClose }: { stack: Stack;
   const [format, setFormat] = useState<ExportFormat>('compose')
   const [content, setContent] = useState('')
   const [filename, setFilename] = useState('')
-  const [copied, setCopied] = useState(false)
   const [viaChaos, setViaChaos] = useState(false)
   const [keepData, setKeepData] = useState(false)
   const [passwords, setPasswords] = useState(false)
@@ -159,17 +141,7 @@ export function ExportPanel({ stack, t, lang, hasAws, onClose }: { stack: Stack;
   }
 
   return (
-    <aside className="panel panel-wide" role="dialog" aria-label={`${stack.id} ${t('export')}`}>
-      <div className="panel-head">
-        <h3>
-          {stack.id} · {es ? 'Archivos de configuración' : 'Configuration files'}
-        </h3>
-        <div>
-          <button className="ghost" onClick={onClose}>
-            {t('close')}
-          </button>
-        </div>
-      </div>
+    <Drawer wide lang={lang} label={`${stack.id} ${t('export')}`} title={`${stack.id} · ${es ? 'Archivos de configuración' : 'Configuration files'}`} onClose={onClose}>
 
       <div className="fmt-groups">
         {EXPORT_GROUPS.map((g) => (
@@ -212,27 +184,22 @@ export function ExportPanel({ stack, t, lang, hasAws, onClose }: { stack: Stack;
         )}
       </div>
       {info.passwords && passwords && (
-        <p className="err">{es ? 'Este archivo contiene contraseñas: no lo subas a git ni lo compartas.' : 'This file contains passwords: keep it out of git and do not share it.'}</p>
+        <Notice tone="bad">{es ? 'Este archivo contiene contraseñas: no lo subas a git ni lo compartas.' : 'This file contains passwords: keep it out of git and do not share it.'}</Notice>
       )}
 
       <div className="actions">
-        <button
-          className="primary"
-          disabled={!filename}
-          onClick={() =>
-            copyText(content, () => {
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1500)
-            })
-          }
-        >
-          {copied ? t('copied') : t('copy')}
-        </button>
+        {filename ? (
+          <CopyButton lang={lang} text={content} className="primary" />
+        ) : (
+          <button className="primary" disabled>
+            {t('copy')}
+          </button>
+        )}
         <button disabled={!filename} onClick={save}>
           {es ? 'Descargar' : 'Download'} {filename && <code>{filename}</code>}
         </button>
       </div>
       <pre>{content}</pre>
-    </aside>
+    </Drawer>
   )
 }

@@ -3,8 +3,12 @@ import type { Provider } from './api'
 import type { ProviderGuide } from './guides'
 import type { Key, Lang } from './i18n'
 import type { TabId } from './nav'
+import { Drawer, Pill, type Tone } from './ui'
+import './system.css'
 
 type T = (k: Key) => string
+
+const TONE: Record<string, Tone> = { running: 'ok', stopped: 'warn', error: 'bad' }
 
 interface Props {
   provider: Provider
@@ -23,22 +27,19 @@ export function ProviderGuidePanel({ provider, guide, t, lang, starting, dockerU
   const running = provider.state === 'running'
 
   return (
-    <aside className="panel guide-panel" role="dialog" aria-label={provider.name}>
-      <div className="panel-head">
-        <h3>
+    <Drawer
+      lang={lang}
+      label={provider.name}
+      onClose={onClose}
+      title={
+        <>
           <i className={running ? 'led on' : 'led'} /> {provider.name}
-        </h3>
-        <button className="ghost" onClick={onClose}>
-          {t('close')}
-        </button>
-      </div>
-
+        </>
+      }
+    >
       <div className="guide-body">
         <div className="guide-state">
-          <span className={`pill ${provider.state}`}>
-            <i className="dot" />
-            {t(`state_${provider.state}` as Key)}
-          </span>
+          <Pill tone={TONE[provider.state] ?? 'idle'}>{t(`state_${provider.state}` as Key)}</Pill>
           {!running && (
             <button className="primary" disabled={starting || !dockerUp} onClick={onStart}>
               {starting ? t('guideStarting') : t('guideStartIt')}
@@ -83,7 +84,7 @@ export function ProviderGuidePanel({ provider, guide, t, lang, starting, dockerU
         <section>
           <h4>{t('guideTry')}</h4>
           {guide && guide.snippets.length > 0 ? (
-            guide.snippets.map((s, i) => <CodeBlock key={i} title={s.title[lang]} code={s.code} t={t} />)
+            guide.snippets.map((s, i) => <CodeBlock key={i} title={s.title[lang]} code={s.code} t={t} lang={lang} />)
           ) : (
             <p className="muted">{t('guideNoSnippets')}</p>
           )}
@@ -106,6 +107,6 @@ export function ProviderGuidePanel({ provider, guide, t, lang, starting, dockerU
           </button>
         )}
       </div>
-    </aside>
+    </Drawer>
   )
 }
