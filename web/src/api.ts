@@ -51,7 +51,7 @@ export interface StackAction {
   results: Array<{ id: string; ok: boolean; error?: string | null }>
 }
 
-export type ExportFormat = 'env' | 'tofu' | 'awscli'
+export type ExportFormat = 'env' | 'tofu' | 'awscli' | 'compose' | 'composeenv' | 'spring' | 'dotnet'
 
 export interface ExportResult {
   format: ExportFormat
@@ -178,8 +178,8 @@ export const api = {
   stacks: () => request<StackList>('/api/stacks'),
   stackUp: (id: string) => request<StackAction>(`/api/stacks/${id}/up`, { method: 'POST' }),
   stackDown: (id: string) => request<StackAction>(`/api/stacks/${id}/down`, { method: 'POST' }),
-  stackExport: (id: string, format: ExportFormat, chaos = false) =>
-    request<ExportResult>(`/api/stacks/${id}/export?format=${format}${chaos ? '&chaos=true' : ''}`),
+  stackExport: (id: string, format: ExportFormat, o: { chaos?: boolean; persist?: boolean; secrets?: boolean } = {}) =>
+    request<ExportResult>(`/api/stacks/${id}/export?format=${format}${o.chaos ? '&chaos=true' : ''}${o.persist ? '&persist=true' : ''}${o.secrets ? '&secrets=true' : ''}`),
 }
 
 /** Human-readable failures of a stack action, e.g. "redis: port busy". Empty when everything worked. */

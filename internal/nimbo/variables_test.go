@@ -356,3 +356,32 @@ func TestVariableNamesAreAllExplainedInTheGuides(t *testing.T) {
 		coreTrue(t, strings.Contains(string(b), n), "guides.ts does not explain "+n)
 	}
 }
+
+func TestAPageFromAnotherSiteCannotChangeAnything(t *testing.T) {
+	h, rt, store, _ := varsServer(t)
+	store.values["NIMBO_REDIS_PASSWORD"] = "redis-password-1"
+	for _, c := range [][3]string{
+		{"POST", "/api/providers/redis/start", ""},
+		{"POST", "/api/secrets/NIMBO_REDIS_PASSWORD/reveal", ""},
+		{"DELETE", "/api/providers/redis/data?confirm=yes", ""},
+		{"PUT", "/api/secrets/NIMBO_POSTGRES_USER", `{"value":"app"}`},
+	} {
+		r := coreDo(h, c[0], c[1], c[2], "Origin", "https://evil.example")
+		coreEq(t, 403, r.Code, c[0]+" "+c[1])
+		coreContains(t, r.Body, "Cross-origin")
+		coreTrue(t, !strings.Contains(r.Body, "redis-password-1"))
+	}
+	coreEq(t, 0, len(rt.started))
+	// A foreign page cannot hide behind an origin that only looks like ours.
+	coreEq(t, 403, coreDo(h, "POST", "/api/providers/redis/start", "", "Origin", "http://localhost:9999").Code, "another port is another site")
+	coreEq(t, 403, coreDo(h, "POST", "/api/providers/redis/start", "", "Origin", "http://localhost.evil.example").Code)
+}
+
+func TestOwnPagesAndNonBrowserClientsStillWork(t *testing.T) {
+	h, _, _, _ := varsServer(t)
+	for _, origin := range []string{"http://localhost:8080", "http://wails.localhost"} {
+		coreEq(t, 202, coreDo(h, "POST", "/api/providers/redis/start", "", "Origin", origin).Code, origin)
+	}
+	coreEq(t, 202, coreDo(h, "POST", "/api/providers/redis/start", "").Code, "no Origin: curl, scripts")
+	coreEq(t, 200, coreDo(h, "GET", "/api/providers", "", "Origin", "https://evil.example").Code, "reading is not blocked here: a foreign page cannot read the answer anyway")
+}

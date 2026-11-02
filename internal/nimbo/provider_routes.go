@@ -344,7 +344,7 @@ func (s *StackRoutes) export(w http.ResponseWriter, r *http.Request) error {
 	}
 	format, ok := ExportFormatOf(Query(r, "format"))
 	if !ok {
-		return InvalidParam{"format must be env, tofu or awscli"}
+		return InvalidParam{"format must be one of: " + strings.Join(sortedFormatIDs(), ", ")}
 	}
 	var defs []ProviderDef
 	hasAWS := false
@@ -354,19 +354,33 @@ func (s *StackRoutes) export(w http.ResponseWriter, r *http.Request) error {
 			hasAWS = hasAWS || id == "floci-aws"
 		}
 	}
-	if format != ExportFormatEnv && !hasAWS {
+	if format.NeedsAWS && !hasAWS {
 		WriteJSON(w, http.StatusConflict, ErrorDto{"Stack '" + stack.ID + "' has no AWS emulator (floci-aws)"})
 		return nil
 	}
 	chaos := Query(r, "chaos") == "true"
+	// The real passwords are in a file only when the page asks for them (a deliberate button), and that is journaled.
+	reveal := Query(r, "secrets") == "true"
+	values := exportValues(r.Context(), defs, s.Config.HostEnv, s.Secrets, reveal)
 	var content string
 	switch format {
 	case ExportFormatEnv:
 		content = ExportEnv(defs, chaos)
+	case ExportFormatCompose:
+		content = ExportCompose(stack.ID, defs, values, Query(r, "persist") == "true")
+	case ExportFormatComposeEnv:
+		content = ExportComposeEnv(defs, values)
+	case ExportFormatSpring:
+		content = ExportSpring(defs, values)
+	case ExportFormatDotnet:
+		content = ExportDotnet(defs, values)
 	case ExportFormatTofu:
 		content = ExportTofuAwsOverride(chaos)
 	default:
 		content = ExportAwsCliProfile(chaos)
+	}
+	if reveal {
+		s.Data.Stats.Record("secret.reveal", stack.ID, "export "+format.ID)
 	}
 	s.Data.Stats.Record("export", stack.ID, format.ID)
 	WriteJSON(w, http.StatusOK, ExportDto{Format: format.ID, Filename: format.Filename, Content: content})

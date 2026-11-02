@@ -324,7 +324,7 @@ export function App() {
       </main>
 
       {panel && <SidePanel panel={panel} t={t} onClose={() => setPanel(null)} />}
-      {exporting && <ExportPanel stack={exporting} t={t} onClose={() => setExporting(null)} />}
+      {exporting && <ExportPanel stack={exporting} t={t} lang={lang} hasAws={exporting.providers.includes('floci-aws')} onClose={() => setExporting(null)} />}
       {guideProvider && (
         <ProviderGuidePanel
           provider={guideProvider}
