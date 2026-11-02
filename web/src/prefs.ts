@@ -39,8 +39,17 @@ export function applyTheme(theme: Theme, root: Pick<HTMLElement, 'setAttribute' 
 }
 
 /** The help box of a screen stays however the person left it; it starts open so first-timers see it. */
+/**
+ * Whether the note of a screen starts open: only when the person left it open. A new screen starts with it folded and a
+ * dot on its button, so the content is what you see first; the Guide already explains the basics.
+ */
 export function helpOpen(tab: string): boolean {
-  return readPref(`help.${tab}`) !== 'closed'
+  return readPref(`help.${tab}`) === 'open'
+}
+
+/** True until the person has opened or closed the note of this screen once: the button shows a dot until then. */
+export function helpUnseen(tab: string): boolean {
+  return readPref(`help.${tab}`) === null
 }
 
 export function setHelpOpen(tab: string, open: boolean): void {

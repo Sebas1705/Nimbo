@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DockerStatus, Provider } from './api'
 import { extraPorts, primaryPort, recipeStatus, runningCount, stepStatus } from './guideLogic'
-import { applyTheme, helpOpen, loadTheme, nextTheme, readPref, setHelpOpen, writePref } from './prefs'
+import { applyTheme, helpOpen, helpUnseen, loadTheme, nextTheme, readPref, setHelpOpen, writePref } from './prefs'
 
 const prov = (id: string, state: Provider['state'], ports: number[] = [1000]): Provider => ({
   id,
@@ -115,14 +115,24 @@ describe('preferences', () => {
     expect(attrs['data-theme']).toBeUndefined()
   })
 
-  it('remember whether the help of each screen is folded, open by default', () => {
+  it('remember whether the help of each screen is open, folded until you open it', () => {
     store()
-    expect(helpOpen('chaos')).toBe(true)
-    setHelpOpen('chaos', false)
     expect(helpOpen('chaos')).toBe(false)
-    expect(helpOpen('labs')).toBe(true)
     setHelpOpen('chaos', true)
     expect(helpOpen('chaos')).toBe(true)
+    expect(helpOpen('labs')).toBe(false)
+    setHelpOpen('chaos', false)
+    expect(helpOpen('chaos')).toBe(false)
+  })
+
+  it('shows a dot until you have opened or folded the note once', () => {
+    store()
+    expect(helpUnseen('traces')).toBe(true)
+    setHelpOpen('traces', true)
+    expect(helpUnseen('traces')).toBe(false)
+    expect(helpOpen('traces')).toBe(true)
+    setHelpOpen('traces', false)
+    expect(helpOpen('traces')).toBe(false)
   })
 
   it('survive storage that throws', () => {
@@ -136,7 +146,7 @@ describe('preferences', () => {
     })
     expect(readPref('x')).toBeNull()
     expect(() => writePref('x', '1')).not.toThrow()
-    expect(helpOpen('guide')).toBe(true)
+    expect(helpOpen('guide')).toBe(false)
     expect(loadTheme()).toBe('auto')
   })
 })
