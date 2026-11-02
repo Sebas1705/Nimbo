@@ -1,0 +1,5 @@
+/* Registry-only rules; everything shared lives in ui/kit.css. */
+
+/* The "also delete the volumes" checkbox inside the Down confirmation. */
+.confirm .check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.registry .notice { font-size: 13px; }
