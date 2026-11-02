@@ -3,6 +3,20 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [Unreleased]
+
+### Added
+- **A data folder.** Settings, lab progress, usage statistics, a journal and the fidelity history are kept in `~/.nimbo` (`NIMBO_DATA_DIR`), with backup, restore and reset. Lab progress and the language/theme move from the browser to that folder (what the browser had is imported once).
+- **Keep emulator data.** A per-emulator switch keeps its data in a Docker volume across stop and remove; deleting it is a separate confirmed action. Verified with real containers for Redis, PostgreSQL, MinIO and Floci AWS.
+- **Passwords in the Windows store** (DPAPI, per user) for MinIO and PostgreSQL; the environment still wins. Never part of a backup.
+- **Updater.** Checks GitHub (at most once a day, or never in manual mode), downloads the installer for your installation verified against `SHA256SUMS`, installs the Windows app after you confirm, and imports an installer from a file for offline use.
+- **Offline images.** Releases publish the emulator images as `docker save` packs; `packaging/make-offline-kit.ps1` builds a carry-around kit and *System > Offline* loads the packs.
+- A *System* section with Activity, Settings and data, Updates and Offline screens.
+
+### Fixed
+- **MinIO could not start**: its images are no longer published on Docker Hub or quay.io; Nimbo now uses the Chainguard build (`cgr.dev/chainguard/minio`).
+- A malformed JSON body now answers 400 instead of 500.
+
 ## [0.2.1]
 
 ### Added

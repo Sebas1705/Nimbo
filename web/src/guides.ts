@@ -538,6 +538,32 @@ export const TAB_HELP: Record<TabId, TabHelp> = {
       t('Pulsa Verificar cuando creas haber terminado: te dice qué comprobación falla y por qué.', 'Press Verify when you think you are done: it tells you which check fails and why.'),
     ],
   },
+  activity: {
+    points: [
+      t('Todo se guarda en una carpeta de tu equipo y nunca se envía a ningún sitio: el tiempo en marcha se mide mientras Nimbo está abierto.', 'Everything is kept in a folder on your computer and never sent anywhere: time up is measured while Nimbo is open.'),
+      t('El diario muestra lo último que hiciste. La fidelidad compara cada ejecución con la anterior y marca en rojo lo que empeoró.', 'The journal shows the latest things you did. Fidelity compares each run with the previous one and marks in red what got worse.'),
+    ],
+  },
+  settings: {
+    points: [
+      t('"Conservar datos" se activa por emulador, en Infraestructura: sus datos viven en un volumen de Docker y sobreviven a parar o eliminar el contenedor. Borrarlos es una acción aparte.', '"Keep data" is switched on per emulator, in Infrastructure: its data lives in a Docker volume and survives stopping or removing the container. Deleting it is a separate action.'),
+      t('Las contraseñas de MinIO y PostgreSQL se guardan cifradas con tu usuario de Windows. Si ya las defines con una variable de entorno, esa gana. Con PostgreSQL conservado, la contraseña queda fijada al crearlo: cambiarla aquí no cambia la base existente.', 'The MinIO and PostgreSQL passwords are stored encrypted for your Windows user. If you already set them with an environment variable, that one wins. With PostgreSQL data kept, its password is fixed when it is created: changing it here does not change the existing database.'),
+      t('La copia de seguridad incluye ajustes, progreso, estadísticas e historial, nunca las contraseñas ni los datos de los emuladores.', 'The backup holds settings, progress, statistics and history, never the passwords or the emulator data.'),
+    ],
+  },
+  updates: {
+    points: [
+      t('Nimbo solo habla con github.com/Sebas1705/Nimbo, como mucho una vez al día en modo automático y nunca en modo manual. No descarga ni instala nada sin que lo confirmes.', 'Nimbo only talks to github.com/Sebas1705/Nimbo, at most once a day in automatic mode and never in manual mode. It downloads and installs nothing without your confirmation.'),
+      t('Cada descarga se comprueba con el SHA256SUMS de la versión y se borra si no coincide. Un instalador importado desde un archivo sin comprobación se marca como "sin verificar".', 'Every download is checked against the release\'s SHA256SUMS and deleted if it does not match. An installer imported from a file with no checksum is marked "not verified".'),
+      t('Solo la app de Windows se instala sola. Con el jar tendrás el archivo nuevo; con Docker, el comando para actualizar la imagen.', 'Only the Windows app installs itself. With the jar you get the new file; with Docker, the command to update the image.'),
+    ],
+  },
+  offline: {
+    points: [
+      t('Los emuladores son imágenes de Docker que normalmente se descargan al arrancarlos. Aquí ves cuáles ya están en tu equipo.', 'The emulators are Docker images that are normally downloaded when you start them. Here you see which ones are already on your computer.'),
+      t('Para trabajar sin internet, prepara un kit con packaging/make-offline-kit.ps1 en un equipo con conexión y carga los paquetes aquí. Cada paquete se verifica si hay un SHA256SUMS a su lado.', 'To work without internet, build a kit with packaging/make-offline-kit.ps1 on a connected computer and load the packs here. Each pack is verified when a SHA256SUMS sits next to it.'),
+    ],
+  },
 }
 
 /** Short stack descriptions in both languages for the stacks that ship; user-defined stacks keep their own text. */

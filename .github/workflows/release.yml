@@ -140,9 +140,36 @@ jobs:
           name: nimbo-desktop-${{ needs.package.outputs.version }}
           path: dist/
 
+  # The emulator images, saved as files so Nimbo can run with no internet (Sistema > Sin conexión loads them).
+  # Which image goes in which pack is backend/src/main/resources/image-packs.json, and a test keeps it in step with the catalog.
+  images:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save the image packs
+        run: |
+          V=${{ needs.package.outputs.version }}
+          mkdir dist
+          for pack in $(jq -r '.packs[].id' backend/src/main/resources/image-packs.json); do
+            IMAGES=$(jq -r --arg p "$pack" '.packs[] | select(.id==$p) | .images[]' backend/src/main/resources/image-packs.json)
+            for image in $IMAGES; do docker pull --quiet "$image"; done
+            docker save $IMAGES | gzip -6 > "dist/Nimbo-$V-images-$pack.tar.gz"
+            SIZE=$(stat -c %s "dist/Nimbo-$V-images-$pack.tar.gz")
+            echo "$pack: $((SIZE / 1048576)) MiB"
+            # A GitHub release asset can be at most 2 GiB: fail loudly instead of publishing half a release.
+            if [ "$SIZE" -gt 2040109465 ]; then echo "::error::Pack $pack is too big for a release asset: split it in image-packs.json"; exit 1; fi
+            docker image rm $IMAGES > /dev/null 2>&1 || true
+          done
+          ls -la dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nimbo-images-${{ needs.package.outputs.version }}
+          path: dist/
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [package, desktop]
+    needs: [package, desktop, images]
     runs-on: ubuntu-latest
     permissions:
       contents: write

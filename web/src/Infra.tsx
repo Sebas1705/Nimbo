@@ -6,6 +6,9 @@ import type { Key, Lang } from './i18n'
 
 type T = (k: Key) => string
 
+/** What a card can ask for: the container lifecycle, the "keep my data" switch, and deleting what was kept. */
+export type ProviderAction = 'start' | 'stop' | 'remove' | 'persistOn' | 'persistOff' | 'deleteData'
+
 interface Props {
   t: T
   lang: Lang
@@ -16,7 +19,7 @@ interface Props {
   errors: Record<string, string>
   stackBusy: string | null
   stackErrors: Record<string, string>
-  act: (p: Provider, action: 'start' | 'stop' | 'remove') => void
+  act: (p: Provider, action: ProviderAction) => void
   runStack: (s: Stack, action: 'stackUp' | 'stackDown') => void
   onPanel: (kind: 'logs' | 'env', p: Provider) => void
   onExport: (s: Stack) => void
@@ -118,6 +121,23 @@ function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Pro
       <p className="image">
         <code>{p.image}</code>
       </p>
+
+      {p.persistable && (
+        <div className="keep">
+          <label>
+            <input type="checkbox" checked={p.persist === true} disabled={busy.has(p.id)} onChange={(e) => act(p, e.target.checked ? 'persistOn' : 'persistOff')} />
+            <span>{lang === 'es' ? 'Conservar datos' : 'Keep data'}</span>
+          </label>
+          {p.persist && p.state === 'running' && (
+            <small>{lang === 'es' ? 'Se aplica al arrancar de nuevo.' : 'Applies the next time it starts.'}</small>
+          )}
+          {p.hasData && (
+            <button className="ghost danger small" disabled={busy.has(p.id) || p.state === 'running'} title={p.state === 'running' ? (lang === 'es' ? 'Párala antes' : 'Stop it first') : undefined} onClick={() => act(p, 'deleteData')}>
+              {lang === 'es' ? 'Borrar datos guardados' : 'Delete saved data'}
+            </button>
+          )}
+        </div>
+      )}
 
       {errors[p.id] && <p className="err">{errors[p.id]}</p>}
       <div className="actions">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { labProgress, labs, type Lab, type LabList, type LabVerify } from './api'
+import { labProgress, labs, system, type Lab, type LabList, type LabVerify } from './api'
 import type { Key, Lang } from './i18n'
+import { idsToImport } from './systemLogic'
 
 type T = (k: Key) => string
 
@@ -10,6 +11,23 @@ export function LabsView({ t, lang, focus = null }: { t: T; lang: Lang; focus?: 
   const [selected, setSelected] = useState<string | null>(focus)
   const [done, setDone] = useState<Set<string>>(() => labProgress.load())
   const [error, setError] = useState('')
+
+  // Progress lives in the data folder. What an older version kept in this browser is handed over once, then the browser
+  // copy is only a cache for the first paint.
+  useEffect(() => {
+    system
+      .progress()
+      .then(async (server) => {
+        const mine = labProgress.load()
+        const toSend = idsToImport(mine, server.labs)
+        const merged = toSend.length > 0 ? await system.importProgress(toSend) : server
+        const completed = new Set(Object.entries(merged.labs).filter(([, r]) => r.completedAt != null).map(([id]) => id))
+        const all = new Set([...mine, ...completed])
+        labProgress.save(all)
+        setDone(all)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     labs

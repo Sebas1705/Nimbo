@@ -31,7 +31,8 @@ class ProcessExec(private val bin: String = "docker") : Exec {
     }
 }
 
-data class ContainerInfo(val providerId: String, val running: Boolean, val status: String)
+/** [persist] is how the container was created: with its data in a volume, or without. */
+data class ContainerInfo(val providerId: String, val running: Boolean, val status: String, val persist: Boolean = false)
 
 interface ContainerRuntime {
     suspend fun status(): DockerStatusDto
@@ -40,6 +41,15 @@ interface ContainerRuntime {
     suspend fun stop(def: ProviderDef): Result<Unit>
     suspend fun remove(def: ProviderDef): Result<Unit>
     suspend fun logs(def: ProviderDef, tail: Int): Result<String>
+
+    /** Starts keeping the provider's data in a volume (or not). Runtimes without volumes ignore the flag. */
+    suspend fun start(def: ProviderDef, hostEnv: Map<String, String>, persist: Boolean): Result<Unit> = start(def, hostEnv)
+
+    /** Ids of the providers that have saved data in a volume. */
+    suspend fun savedData(): Set<String> = emptySet()
+
+    /** Deletes the saved data of a provider (and its stopped container). */
+    suspend fun deleteData(def: ProviderDef): Result<Unit> = Result.success(Unit)
 }
 
 /** Drives the local `docker` CLI. Only ever touches containers labelled `nimbo.managed=true`. */
@@ -56,29 +66,49 @@ class CliContainerRuntime(private val exec: Exec = ProcessExec()) : ContainerRun
             listOf(
                 "ps", "-a", "--filter", "label=$LABEL_MANAGED=true",
                 // No quotes in the template: ProcessBuilder on Windows does not escape them for docker.exe.
-                "--format", "{{.Names}}|{{.State}}|{{.Status}}",
+                "--format", "{{.Names}}|{{.State}}|{{.Status}}|{{.Labels}}",
             ),
             15,
         )
         if (!r.ok) return emptyMap()
         return r.output.lines().mapNotNull { line ->
-            val parts = line.split('|', limit = 3)
+            val parts = line.split('|', limit = 4)
             val id = parts.getOrNull(0)?.removePrefix(NAME_PREFIX)
             if (parts.size < 3 || id.isNullOrBlank()) null
-            else id to ContainerInfo(id, parts[1] == "running", parts[2])
+            else id to ContainerInfo(id, parts[1] == "running", parts[2], persist = parts.getOrNull(3)?.contains("$LABEL_PERSIST=true") == true)
         }.toMap()
     }
 
-    override suspend fun start(def: ProviderDef, hostEnv: Map<String, String>): Result<Unit> {
+    override suspend fun start(def: ProviderDef, hostEnv: Map<String, String>): Result<Unit> = start(def, hostEnv, persist = false)
+
+    override suspend fun start(def: ProviderDef, hostEnv: Map<String, String>, persist: Boolean): Result<Unit> {
         val missing = def.secretEnv.values.filter { hostEnv[it].isNullOrBlank() }
         if (missing.isNotEmpty()) {
             return Result.failure(
                 IllegalStateException("Missing secrets: ${missing.joinToString()}. Set them in Nimbo's environment (a .env file with docker compose, or 'doppler run --')."),
             )
         }
+        val wanted = persist && def.persist != null
         val existing = containers()[def.id]
-        if (existing != null) return run(listOf("start", containerName(def)))
-        return run(buildRunArgs(def, hostEnv))
+        if (existing != null && (existing.persist == wanted || existing.running)) return run(listOf("start", containerName(def)))
+        // A stopped container created in the other mode is replaced; the volume, if any, is left alone.
+        if (existing != null) run(listOf("rm", "-f", containerName(def)))
+        return run(buildRunArgs(def, hostEnv, wanted))
+    }
+
+    override suspend fun savedData(): Set<String> {
+        val r = exec.run(listOf("volume", "ls", "--filter", "name=$NAME_PREFIX", "--format", "{{.Name}}"), 15)
+        if (!r.ok) return emptySet()
+        return r.output.lines().map { it.trim() }.filter { it.startsWith(NAME_PREFIX) && it.endsWith(VOLUME_SUFFIX) }
+            .map { it.removePrefix(NAME_PREFIX).removeSuffix(VOLUME_SUFFIX) }.toSet()
+    }
+
+    override suspend fun deleteData(def: ProviderDef): Result<Unit> {
+        val existing = containers()[def.id]
+        if (existing?.running == true) return Result.failure(IllegalStateException("Stop ${def.name} before deleting its data"))
+        if (existing != null) run(listOf("rm", "-f", containerName(def)))
+        val r = exec.run(listOf("volume", "rm", volumeName(def)), 30)
+        return if (r.ok || "No such volume" in r.output) Result.success(Unit) else Result.failure(IllegalStateException(r.output.ifBlank { "docker failed" }))
     }
 
     override suspend fun stop(def: ProviderDef): Result<Unit> = run(listOf("stop", containerName(def)))
@@ -98,20 +128,29 @@ class CliContainerRuntime(private val exec: Exec = ProcessExec()) : ContainerRun
     companion object {
         const val LABEL_MANAGED = "nimbo.managed"
         const val LABEL_PROVIDER = "nimbo.provider"
+        const val LABEL_PERSIST = "nimbo.persist"
 
         const val NAME_PREFIX = "nimbo-"
+        const val VOLUME_SUFFIX = "-data"
 
         fun containerName(def: ProviderDef) = "$NAME_PREFIX${def.id}"
 
-        fun buildRunArgs(def: ProviderDef, hostEnv: Map<String, String>): List<String> = buildList {
+        /** One named volume per provider, so deleting a container never deletes what it saved. */
+        fun volumeName(def: ProviderDef) = "$NAME_PREFIX${def.id}$VOLUME_SUFFIX"
+
+        fun buildRunArgs(def: ProviderDef, hostEnv: Map<String, String>, persist: Boolean = false): List<String> = buildList {
+            val keep = if (persist) def.persist else null
             addAll(listOf("run", "-d", "--name", containerName(def)))
-            addAll(listOf("--label", "$LABEL_MANAGED=true", "--label", "$LABEL_PROVIDER=${def.id}"))
+            addAll(listOf("--label", "$LABEL_MANAGED=true", "--label", "$LABEL_PROVIDER=${def.id}", "--label", "$LABEL_PERSIST=${keep != null}"))
             def.ports.forEach { addAll(listOf("-p", "127.0.0.1:$it:$it")) }
+            keep?.let { addAll(listOf("-v", "${volumeName(def)}:${it.mountPath}")) }
+            keep?.user?.let { addAll(listOf("--user", it)) }
             def.containerEnv.forEach { (k, v) -> addAll(listOf("-e", "$k=$v")) }
+            keep?.env?.forEach { (k, v) -> addAll(listOf("-e", "$k=$v")) }
             def.secretEnv.forEach { (container, host) -> addAll(listOf("-e", "$container=${hostEnv.getValue(host)}")) }
             addAll(def.runArgs)
             add(def.image)
-            addAll(def.command)
+            addAll(keep?.command ?: def.command)
         }
     }
 }

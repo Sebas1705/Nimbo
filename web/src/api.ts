@@ -9,6 +9,12 @@ export interface Provider {
   ports: number[]
   state: RunState
   detail?: string | null
+  /** The emulator has data worth keeping between runs. */
+  persistable?: boolean
+  /** The "keep my data" switch is on. */
+  persist?: boolean
+  /** A Docker volume with saved data exists right now. */
+  hasData?: boolean
 }
 
 export interface DockerStatus {
@@ -142,6 +148,8 @@ export const tokenStore = {
   },
 }
 
+const json = (body: unknown, method = 'POST'): RequestInit => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = tokenStore.get()
   const res = await fetch(path, {
@@ -161,6 +169,8 @@ export const api = {
   start: (id: string) => request<Provider>(`/api/providers/${id}/start`, { method: 'POST' }),
   stop: (id: string) => request<Provider>(`/api/providers/${id}/stop`, { method: 'POST' }),
   remove: (id: string) => request<void>(`/api/providers/${id}`, { method: 'DELETE' }),
+  setPersist: (id: string, enabled: boolean) => request<Settings>(`/api/providers/${id}/persist`, json({ enabled })),
+  deleteData: (id: string) => request<void>(`/api/providers/${id}/data?confirm=yes`, { method: 'DELETE' }),
   logs: (id: string) => request<{ lines: string }>(`/api/providers/${id}/logs?tail=300`),
   env: (id: string) => request<{ dotenv: string }>(`/api/providers/${id}/env`),
   stacks: () => request<StackList>('/api/stacks'),
@@ -202,7 +212,6 @@ export const chaos = {
   reset: () => request<ChaosView>('/api/chaos/reset', { method: 'POST' }),
 }
 
-const json = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
 const k8s = '/api/k8s'
 
 export const kube = {
@@ -306,4 +315,83 @@ export function groupByCloud(providers: Provider[]): Array<[Provider['cloud'], P
 
 export function countRunning(providers: Provider[]): number {
   return providers.filter((p) => p.state === 'running').length
+}
+
+// ---- Data folder: settings, progress, statistics, secrets, backups -------------------------------------------------
+
+export interface Settings {
+  lang: 'es' | 'en' | null
+  theme: Theme
+  updateMode: 'auto' | 'manual'
+  persist: string[]
+  lastUpdateCheck: number | null
+}
+type Theme = 'auto' | 'light' | 'dark'
+export interface LabRecord { completedAt: number | null; attempts: number; firstAttemptAt: number | null; lastAttemptAt: number | null }
+export interface ProviderUsage { starts: number; stops: number; upSeconds: number; lastStartedAt: number | null }
+export interface JournalEntry { at: number; kind: string; subject: string; detail?: string | null }
+export interface FidelityRun { at: number; durationMs: number; suites: Record<string, string>; steps: number; passed: number }
+export interface StatsView {
+  stats: { since: number; providers: Record<string, ProviderUsage>; counters: Record<string, number> }
+  journal: JournalEntry[]
+  fidelity: FidelityRun[]
+}
+export interface DataInfo { location: string | null; files: Record<string, number>; distribution: 'jar' | 'desktop' | 'docker' }
+export interface SecretItem { name: string; set: boolean; usedBy: string[]; password: boolean }
+export interface SecretsView { available: boolean; reason: string | null; items: SecretItem[] }
+export type ResetWhat = 'stats' | 'progress' | 'history' | 'all'
+
+export const system = {
+  settings: () => request<Settings>('/api/settings'),
+  saveSettings: (patch: Partial<Pick<Settings, 'lang' | 'theme' | 'updateMode'>>) => request<Settings>('/api/settings', json(patch, 'PUT')),
+  progress: () => request<{ labs: Record<string, LabRecord> }>('/api/progress'),
+  importProgress: (ids: string[]) => request<{ labs: Record<string, LabRecord> }>('/api/progress/import', json({ ids })),
+  stats: () => request<StatsView>('/api/stats?limit=60'),
+  data: () => request<DataInfo>('/api/data'),
+  exportData: () => request<unknown>('/api/data/export'),
+  importData: (bundle: unknown) => request<{ restored: string[] }>('/api/data/import', json(bundle)),
+  reset: (what: ResetWhat) => request<void>(`/api/data/reset?what=${what}&confirm=yes`, { method: 'POST' }),
+  secrets: () => request<SecretsView>('/api/secrets'),
+  setSecret: (name: string, value: string) => request<void>(`/api/secrets/${seg(name)}`, json({ value }, 'PUT')),
+  generateSecret: (name: string) => request<{ value: string }>(`/api/secrets/${seg(name)}/generate`, { method: 'POST' }),
+  deleteSecret: (name: string) => request<void>(`/api/secrets/${seg(name)}`, { method: 'DELETE' }),
+}
+
+// ---- Updates and offline images ------------------------------------------------------------------------------------
+
+export interface UpdateAsset { name: string; size: number; url: string }
+export interface UpdateRelease { tag: string; version: string; notes: string; publishedAt: string | null; assets: UpdateAsset[] }
+export interface UpdateFile { version: string; name: string; sha256: string; verified: boolean; source: 'github' | 'file'; size: number; at: number }
+export interface UpdateStatus {
+  current: string | null
+  distribution: 'jar' | 'desktop' | 'docker'
+  mode: 'auto' | 'manual'
+  checkedAt: number | null
+  latest: UpdateRelease | null
+  available: boolean
+  asset: UpdateAsset | null
+  files: UpdateFile[]
+  canInstall: boolean
+  error: string | null
+  manual: string | null
+}
+
+export const updates = {
+  status: () => request<UpdateStatus>('/api/updates'),
+  /** `force` is the button; without it the server respects the update mode and the daily limit. */
+  check: (force: boolean) => request<UpdateStatus>(`/api/updates/check${force ? '?force=true' : ''}`, { method: 'POST' }),
+  download: (version: string) => request<UpdateFile>('/api/updates/download', json({ version })),
+  importFile: (path: string, sha256?: string) => request<UpdateFile>('/api/updates/import', json({ path, sha256: sha256 || null })),
+  install: (version: string) => request<{ message: string }>('/api/updates/install', json({ version, confirm: true })),
+  clean: () => request<{ deleted: number }>('/api/updates/files', { method: 'DELETE' }),
+}
+
+export interface ImageState { provider: string; image: string; present: boolean; pack: string | null }
+export interface PackFile { name: string; path: string; size: number; pack: string | null; verified: boolean | null }
+export interface ImagesView { docker: boolean; images: ImageState[]; packs: Array<{ id: string; images: string[] }>; files: PackFile[]; folders: string[] }
+
+export const images = {
+  status: () => request<ImagesView>('/api/images'),
+  load: (path: string) => request<{ loaded: string[] }>('/api/images/load', json({ path })),
+  pull: (provider: string) => request<void>('/api/images/pull', json({ provider })),
 }

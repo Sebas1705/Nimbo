@@ -30,7 +30,10 @@ COPY --from=build /src/backend/build/libs/nimbo-*.jar /app/nimbo.jar
 # Inside a container Nimbo must listen on all interfaces so the published port reaches it, and the
 # emulators it starts are published on the host, not on this container. Publish the port on loopback only.
 ENV NIMBO_HOST=0.0.0.0 \
-    NIMBO_EMULATOR_HOST=host.docker.internal
+    NIMBO_EMULATOR_HOST=host.docker.internal \
+    NIMBO_DISTRIBUTION=docker \
+    NIMBO_DATA_DIR=/data
+VOLUME /data
 EXPOSE 8080
 LABEL org.opencontainers.image.title="Nimbo" \
       org.opencontainers.image.description="Your local cloud, no bill: a control center for local cloud emulators" \

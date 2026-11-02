@@ -21,7 +21,7 @@ class StepFailed(message: String) : Exception(message)
 @Serializable data class FitStepDto(val name: String, val status: String, val detail: String? = null, val ms: Long = 0)
 @Serializable data class SuiteResultDto(val id: String, val cloud: String, val name: String, val status: String, val steps: List<FitStepDto>, val ms: Long)
 @Serializable data class SuiteRefDto(val cloud: String, val id: String, val name: String)
-@Serializable data class FidelityStateDto(val running: Boolean, val updatedAt: Long?, val catalog: List<SuiteRefDto>, val results: List<SuiteResultDto>, val summary: Map<String, Int>)
+@Serializable data class FidelityStateDto(val running: Boolean, val updatedAt: Long?, val catalog: List<SuiteRefDto>, val results: List<SuiteResultDto>, val summary: Map<String, Int>, val changes: List<FidelityChange> = emptyList())
 @Serializable data class FidelityReportDto(val startedAt: Long, val durationMs: Long, val suites: List<SuiteResultDto>, val summary: Map<String, Int>)
 
 /** Runs one suite: records steps, and skips the ones that depend on an earlier failure. */

@@ -1,0 +1,16 @@
+{
+  "packs": [
+    {
+      "id": "clouds",
+      "images": ["floci/floci", "floci/floci-az", "floci/floci-gcp", "floci/floci-oci", "mcr.microsoft.com/azure-storage/azurite"]
+    },
+    {
+      "id": "data",
+      "images": ["cgr.dev/chainguard/minio", "redpandadata/redpanda", "postgres:17-alpine", "redis:7-alpine", "ghcr.io/shopify/toxiproxy"]
+    },
+    {
+      "id": "k8s",
+      "images": ["rancher/k3s", "jaegertracing/all-in-one"]
+    }
+  ]
+}

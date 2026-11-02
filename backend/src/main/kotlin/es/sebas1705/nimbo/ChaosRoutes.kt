@@ -10,16 +10,29 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 
-fun Route.chaosRoutes(chaos: Chaos) {
+fun Route.chaosRoutes(chaos: Chaos, stats: StatsService? = null) {
     route("/chaos") {
         get { call.respond(chaos.view()) }
-        post("/reset") { call.respond(chaos.resetAll()) }
+        post("/reset") {
+            val view = chaos.resetAll()
+            stats?.record("chaos.reset", "all")
+            call.respond(view)
+        }
         route("/targets/{id}") {
             post("/{preset}") {
                 val body = runCatching { call.receiveNullable<ApplyDto>() }.getOrNull() ?: ApplyDto()
-                call.respond(chaos.apply(call.parameters["id"].orEmpty(), call.parameters["preset"].orEmpty(), body.params))
+                val id = call.parameters["id"].orEmpty()
+                val preset = call.parameters["preset"].orEmpty()
+                val result = chaos.apply(id, preset, body.params)
+                stats?.record("chaos.apply", id, preset)
+                call.respond(result)
             }
-            delete("/toxics") { call.respond(chaos.clear(call.parameters["id"].orEmpty())) }
+            delete("/toxics") {
+                val id = call.parameters["id"].orEmpty()
+                val result = chaos.clear(id)
+                stats?.record("chaos.clear", id)
+                call.respond(result)
+            }
             delete("/toxics/{name}") { call.respond(chaos.removeToxic(call.parameters["id"].orEmpty(), call.parameters["name"].orEmpty())) }
         }
     }

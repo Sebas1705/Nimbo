@@ -103,8 +103,21 @@ For UI development run the backend as above and `npm run dev` in `web/` (Vite pr
 | `NIMBO_STACKS_FILE` | Stacks file | `nimbo.yml`, then built-in stacks |
 | `NIMBO_ALLOWED_HOSTS` | Extra `Host` values to accept, comma separated | loopback only |
 | `NIMBO_LABS_DIR` | Directory with lab YAML files | `labs` |
+| `NIMBO_DATA_DIR` | Where settings, progress, statistics and stored secrets live | `~/.nimbo` |
+| `NIMBO_IMAGES_DIR` | Extra folder with emulator image packs for *System > Offline* | unset |
+| `NIMBO_DISTRIBUTION` | `jar`, `desktop` or `docker`: decides how updates are offered (set by the installer and the image) | `jar` |
 
 Providers whose secret is missing refuse to start and tell you which variable to provide.
+
+## Your data, updates and working offline
+
+Nimbo keeps what it learns about you in a folder on your computer (`~/.nimbo`, or `NIMBO_DATA_DIR`; a volume in Docker). Nothing in it is ever sent anywhere.
+
+- **Settings, lab progress and statistics** (time each emulator was up, a journal of what you did, the history of the fidelity matrix). *System > Activity* shows them; *System > Settings and data* backs them up and restores them. A backup never contains passwords or emulator data.
+- **Keep emulator data.** Each emulator with something worth keeping has a *Keep data* switch on its card: its data then lives in a Docker volume (`nimbo-<id>-data`) and survives stopping or removing the container. Deleting the data is a separate, confirmed action. With PostgreSQL the password is fixed when its data is first created.
+- **Passwords in the Windows store.** The MinIO and PostgreSQL credentials can be stored encrypted for your Windows user (DPAPI) instead of in an environment variable; an environment variable still wins. Elsewhere Nimbo says it cannot protect them rather than writing them in clear.
+- **Updates.** Nimbo checks `github.com/Sebas1705/Nimbo` for a newer release (at most once a day in automatic mode, never in manual mode), shows the notes, downloads the installer for how you installed it, verifies it against the release's `SHA256SUMS` and installs only after you confirm. The Windows app installs itself; the jar gives you the new file; Docker shows the `docker compose pull` command. You can also import an installer you brought yourself.
+- **Offline.** Every release publishes the emulator images as `Nimbo-<version>-images-<pack>.tar.gz` files. `packaging/make-offline-kit.ps1` downloads the installer and the packs (verified) into a folder you can carry; *System > Offline* loads them with `docker load`.
 
 ## Fidelity
 

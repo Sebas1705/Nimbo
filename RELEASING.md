@@ -14,7 +14,8 @@ A release is a git tag. Everything else is done by `.github/workflows/release.ym
 
 4. The workflow runs the tests, builds `nimbo-<version>.jar`, checks that the jar starts and serves the UI, builds the Docker image, and on a Windows runner builds the desktop app (the portable zip is smoke-tested with `packaging/smoke-test.ps1`, then the `.msi` is built with WiX). Then:
    - publishes a GitHub release with the jar, `Nimbo-<version>-windows-x64.zip`, `Nimbo-<version>-windows-x64.msi` and a `SHA256SUMS` that covers all of them (marked as a pre-release while the version is 0.x);
-   - pushes `ghcr.io/<owner>/nimbo:<version>` and `:latest`.
+   - pushes `ghcr.io/<owner>/nimbo:<version>` and `:latest`;
+   - saves the emulator images as `Nimbo-<version>-images-<pack>.tar.gz` (packs defined in `backend/src/main/resources/image-packs.json`, each under the 2 GiB asset limit) and lists them in `SHA256SUMS`.
 
 The Windows installer is not code-signed. Signing needs a certificate; until there is one the README tells users to expect a SmartScreen warning.
 

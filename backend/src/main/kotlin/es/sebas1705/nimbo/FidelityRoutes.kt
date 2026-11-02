@@ -23,7 +23,7 @@ class FidelityStore {
     @Synchronized fun snapshot(order: List<SuiteRefDto>): List<SuiteResultDto> = order.mapNotNull { results[it.id] }
 }
 
-fun Route.fidelityRoutes(conformance: Conformance, store: FidelityStore) {
+fun Route.fidelityRoutes(conformance: Conformance, store: FidelityStore, data: AppData = AppData()) {
     fun state(): FidelityStateDto {
         val results = store.snapshot(conformance.catalog)
         return FidelityStateDto(store.lock.isLocked, store.updatedAt, conformance.catalog, results, results.groupingBy { it.status }.eachCount())
@@ -41,12 +41,18 @@ fun Route.fidelityRoutes(conformance: Conformance, store: FidelityStore) {
                 return@post call.respond(HttpStatusCode.BadRequest, ErrorDto("Unknown suite '$suite'"))
             }
             if (!store.lock.tryLock()) return@post call.respond(HttpStatusCode.Conflict, ErrorDto("A run is already in progress"))
+            var changes = emptyList<FidelityChange>()
             try {
-                store.merge(conformance.run(cloud, suite))
+                val report = conformance.run(cloud, suite)
+                changes = data.fidelity.changesFor(report)
+                data.fidelity.record(report)
+                data.stats.record("fidelity.run", cloud ?: "all", suite)
+                store.merge(report)
             } finally {
                 store.lock.unlock()
             }
-            call.respond(state())
+            call.respond(state().copy(changes = changes))
         }
+        get("/history") { call.respond(data.fidelity.list()) }
     }
 }
