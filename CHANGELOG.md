@@ -3,6 +3,11 @@
 All notable changes to Nimbo. The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project uses [Semantic Versioning](https://semver.org/); while the version is 0.x, anything may still change.
 
+## [0.3.1]
+
+### Fixed
+- **The published app showed no labs.** It looked for `labs/` and `nimbo.yml` in the folder it was started from and, finding none, read the bundled copy the wrong way (the labs sit under `labs/` inside it). It now uses what is inside the app, unless you point `NIMBO_LABS_DIR` or `NIMBO_STACKS_FILE` somewhere, and the folder it was launched from no longer decides what it shows. A test with the real embedded files, run from an empty folder, now guards this.
+
 ## [0.3.0]
 
 ### Changed

@@ -150,7 +150,13 @@ func LoadBundledStacks(fsys fs.FS, path string) *StackCatalog {
 // LoadStacks looks for NIMBO_STACKS_FILE, then nimbo.yml here and one level up, and falls back to the bundled one
 // (file "nimbo.yml" in bundled, which may be nil) and then to the built-in stacks.
 func LoadStacks(env map[string]string, bundled fs.FS) *StackCatalog {
-	for _, candidate := range []string{env["NIMBO_STACKS_FILE"], "nimbo.yml", "../nimbo.yml"} {
+	// NIMBO_STACKS_FILE first. Then the copy bundled in the app: the folder the app was started from must not decide
+	// which stacks it shows. Only a build without a bundled copy (made for development) looks beside where it started.
+	candidates := []string{env["NIMBO_STACKS_FILE"]}
+	if bundled == nil {
+		candidates = append(candidates, "nimbo.yml", "../nimbo.yml")
+	}
+	for _, candidate := range candidates {
 		if candidate == "" {
 			continue
 		}
