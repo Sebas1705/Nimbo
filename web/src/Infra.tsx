@@ -26,6 +26,8 @@ interface Props {
   onGuide: (providerId: string) => void
   /** Called after a stack of your own was saved or deleted, so the list refreshes. */
   onStacksChanged: () => void
+  /** Open the Registry with this own image ready to edit. */
+  onRegistry: (imageId: string) => void
 }
 
 /** Stacks (groups that start together) on top, then every provider as a module with its port on the front plate. */
@@ -127,7 +129,7 @@ export function InfraView(props: Props) {
   )
 }
 
-function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Props & { p: Provider }) {
+function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide, onRegistry }: Props & { p: Provider }) {
   const port = primaryPort(p)
   const more = extraPorts(p)
   const blurb = guideFor(p.id)?.blurb[lang] ?? p.description
@@ -135,7 +137,10 @@ function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Pro
   return (
     <article className="module" data-state={p.state}>
       <header>
-        <h3>{p.name}</h3>
+        <h3>
+          {p.name}
+          {p.custom && <span className="own-badge" title={lang === 'es' ? 'Imagen propia del Registro' : 'Own image from the Registry'}>{lang === 'es' ? 'propia' : 'own'}</span>}
+        </h3>
         <span className={`pill ${p.state}`}>
           <i className={p.state === 'running' ? 'led on' : 'dot'} />
           {t(`state_${p.state}` as Key)}
@@ -186,9 +191,15 @@ function Module({ p, t, lang, docker, busy, errors, act, onPanel, onGuide }: Pro
             {(p.needsSetup?.length ?? 0) > 0 ? (lang === 'es' ? 'Inicializar y arrancar' : 'Initialize and start') : t('start')}
           </button>
         )}
-        <button className="ghost" onClick={() => onGuide(p.id)}>
-          {t('guideBtn')}
-        </button>
+        {p.custom ? (
+          <button className="ghost" onClick={() => onRegistry(p.id)}>
+            {lang === 'es' ? 'Editar en el Registro' : 'Edit in the Registry'}
+          </button>
+        ) : (
+          <button className="ghost" onClick={() => onGuide(p.id)}>
+            {t('guideBtn')}
+          </button>
+        )}
         <button className="ghost" disabled={p.state === 'not_created'} onClick={() => onPanel('logs', p)}>
           {t('logs')}
         </button>
