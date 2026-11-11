@@ -13,3 +13,8 @@ web/dist/
 .claude/
 .gradle/
 .kotlin/
+
+# Build output: wails build -> build/bin, packaging -> dist, and any binary or installer
+/dist/
+*.exe
+*.msi

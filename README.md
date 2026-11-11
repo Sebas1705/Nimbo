@@ -33,8 +33,7 @@ You need Docker (Docker Desktop or Engine) running. Nimbo drives it to start the
 
 **Windows app.** Download from the [releases](https://github.com/Sebas1705/Nimbo/releases) either `Nimbo-<version>-windows-x64.msi` (installs for your user only, no administrator rights, adds a Start menu entry and updates in place, replacing the older Java-based builds) or `Nimbo-<version>-windows-x64.zip` (portable: unzip and run `Nimbo.exe`). Nimbo opens **its own window** (no browser) and leaves an icon in the system tray: closing the window hides it there, **Open Nimbo** shows it again and **Quit Nimbo** stops it (the emulators it started keep running until you stop them). Starting it a second time only brings the running one to the front. Docker Desktop must be running. It needs the WebView2 runtime, which Windows 11 already includes.
 
-The installer is **not code-signed**, so Windows SmartScreen will warn that the publisher is unknown ("More info" > "Run anyway"); check the file against `SHA256SUMS` first. Settings are read from your Windows environment variables (`NIMBO_API_TOKEN`, `NIMBO_MINIO_PASSWORD`...) or stored from the app (*System > Settings and data*), and the log is in `%LOCALAPPDATA%Nimbo
-imbo.log`.
+The installer is **not code-signed**, so Windows SmartScreen will warn that the publisher is unknown ("More info" > "Run anyway"); check the file against `SHA256SUMS` first. Settings are read from your Windows environment variables (`NIMBO_API_TOKEN`, `NIMBO_MINIO_PASSWORD`...) or stored from the app (*System > Settings and data*), and the log is in `%LOCALAPPDATA%\Nimbo\nimbo.log`.
 
 **The standalone binary.** `nimbo-<version>-linux-amd64` (or the Windows zip) also runs without a window: `nimbo serve` listens on http://127.0.0.1:8080 (`NIMBO_PORT`, `NIMBO_HOST`) and serves the same UI to your browser. Useful on a server or in CI.
 
